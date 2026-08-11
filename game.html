@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Ternix</title>
+
+    <link
+        rel="shortcut icon"
+        href="Images/ternixLogo.png"
+        type="image/x-icon"
+    >
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+
+    <script type="importmap">
+
+    {
+        "imports": {
+
+            "three":
+                "https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.module.js",
+
+            "three/addons/":
+                "https://cdn.jsdelivr.net/npm/three@0.179.1/examples/jsm/"
+
+        }
+    }
+
+    </script>
+
+</head>
+
+
+<body id="game-page">
+
+
+    <!-- =================================================
+         TOP BAR
+    ================================================== -->
+
+    <div id="game-topbar">
+
+        <button
+            id="exit-button"
+            type="button"
+        >
+            EXIT
+        </button>
+
+    </div>
+
+
+    <!-- =================================================
+         CHAT HISTORY
+    ================================================== -->
+
+    <div id="chat-messages"></div>
+
+
+    <!-- =================================================
+         CHAT BAR
+    ================================================== -->
+
+    <div id="chat-bar">
+
+        <span id="chat-placeholder">
+            Press here or "/" key to chat
+        </span>
+
+        <input
+            id="chat-input"
+            type="text"
+            maxlength="120"
+            autocomplete="off"
+            spellcheck="false"
+        >
+
+    </div>
+
+
+    <script>
+
+    /*
+    ------------------------------------------------------
+    Защита game.html.
+    ------------------------------------------------------
+    */
+
+    if (
+        sessionStorage.getItem(
+            "ternixLoggedIn"
+        ) !== "true"
+    ) {
+
+        window.location.replace(
+            "login.html"
+        );
+
+    }
+
+    </script>
+
+
+    <script
+        type="module"
+        src="./game.js"
+    ></script>
+
+
+</body>
+</html>
