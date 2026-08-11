@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Ternix</title>
+
+    <link
+        rel="shortcut icon"
+        href="Images/ternixLogo.png"
+        type="image/x-icon"
+    >
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+</head>
+
+<body class="auth-page">
+
+    <img
+        src="Images/ternixFullLogo.png"
+        class="auth-logo"
+        alt="Ternix"
+    >
+
+    <div class="auth-title">
+        Welcome to Ternix!
+    </div>
+
+
+    <div class="auth-container">
+
+        <!-- REGISTRATION -->
+
+        <form
+            id="register-form"
+            class="auth-box"
+        >
+
+            <fieldset>
+
+                <legend>
+                    Registration
+                </legend>
+
+                <label for="username">
+                    Username:
+                </label>
+
+                <br>
+
+                <input
+                    type="text"
+                    id="username"
+                    required
+                    minlength="3"
+                    maxlength="20"
+                    autocomplete="off"
+                >
+
+                <br>
+                <br>
+
+                <label for="password">
+                    Password:
+                </label>
+
+                <br>
+
+                <input
+                    type="password"
+                    id="password"
+                    required
+                    minlength="8"
+                    maxlength="100"
+                >
+
+                <br>
+                <br>
+
+                <input
+                    type="submit"
+                    value="Register"
+                    class="auth-button"
+                >
+
+                <a
+                    href="login.html"
+                    class="auth-link"
+                >
+                    Login
+                </a>
+
+                <div
+                    id="register-message"
+                    class="auth-error"
+                ></div>
+
+            </fieldset>
+
+        </form>
+
+
+        <!-- INFORMATION -->
+
+        <fieldset
+            style="
+                border:2px solid black;
+                padding:30px;
+                width:920px;
+                height:175px;
+            "
+        >
+
+            <legend>
+                Report & ideas
+            </legend>
+
+            <p>
+                Welcome to Ternix!
+            </p>
+
+            <p>
+                Create your account and then login
+                to start playing.
+            </p>
+
+            <p>
+                Ternix is currently in development.
+            </p>
+
+        </fieldset>
+
+    </div>
+
+
+<script>
+
+/* =====================================================
+   REGISTRATION
+===================================================== */
+
+document
+    .getElementById("register-form")
+    .addEventListener("submit", function(event) {
+
+        event.preventDefault();
+
+
+        const username =
+            document
+                .getElementById("username")
+                .value
+                .trim();
+
+
+        const password =
+            document
+                .getElementById("password")
+                .value;
+
+
+        const message =
+            document
+                .getElementById("register-message");
+
+
+        if (username.length < 3) {
+
+            message.textContent =
+                "Username must contain at least 3 characters.";
+
+            return;
+
+        }
+
+
+        if (password.length < 8) {
+
+            message.textContent =
+                "Password must contain at least 8 characters.";
+
+            return;
+
+        }
+
+
+        /*
+        -------------------------------------------------
+        ВАЖНО:
+
+        Это локальная версия.
+
+        Для настоящего сайта пароль нельзя
+        хранить так. Позже подключим сервер.
+        -------------------------------------------------
+        */
+
+        const accounts =
+            JSON.parse(
+                localStorage.getItem(
+                    "ternixAccounts"
+                ) || "{}"
+            );
+
+
+        const key =
+            username.toLowerCase();
+
+
+        if (accounts[key]) {
+
+            message.textContent =
+                "This username is already registered.";
+
+            return;
+
+        }
+
+
+        accounts[key] = {
+
+            username: username,
+
+            password: password
+
+        };
+
+
+        localStorage.setItem(
+
+            "ternixAccounts",
+
+            JSON.stringify(accounts)
+
+        );
+
+
+        message.className =
+            "auth-success";
+
+
+        message.textContent =
+            "Registration successful! Please login.";
+
+
+        /*
+        Не отправляем пользователя сразу
+        в игру.
+
+        Сначала LOGIN.
+        */
+
+        setTimeout(
+            () => {
+
+                window.location.href =
+                    "login.html";
+
+            },
+            1000
+        );
+
+    });
+
+</script>
+
+</body>
+</html>

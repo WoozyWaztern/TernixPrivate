@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Ternix Login</title>
+
+    <link
+        rel="shortcut icon"
+        href="Images/ternixLogo.png"
+        type="image/x-icon"
+    >
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+</head>
+
+<body class="auth-page">
+
+    <img
+        src="Images/ternixFullLogo.png"
+        class="auth-logo"
+        alt="Ternix"
+    >
+
+    <div class="auth-title">
+        Login to Ternix
+    </div>
+
+
+    <form
+        id="login-form"
+        class="auth-box"
+        style="margin:20px 2px;"
+    >
+
+        <fieldset>
+
+            <legend>
+                Login
+            </legend>
+
+
+            <label for="login-username">
+                Username:
+            </label>
+
+            <br>
+
+            <input
+                type="text"
+                id="login-username"
+                required
+                autocomplete="username"
+            >
+
+            <br>
+            <br>
+
+
+            <label for="login-password">
+                Password:
+            </label>
+
+            <br>
+
+            <input
+                type="password"
+                id="login-password"
+                required
+                autocomplete="current-password"
+            >
+
+            <br>
+            <br>
+
+
+            <input
+                type="submit"
+                value="Login"
+                class="auth-button"
+            >
+
+            <a
+                href="index.html"
+                class="auth-link"
+            >
+                Register
+            </a>
+
+
+            <div
+                id="login-message"
+                class="auth-error"
+            ></div>
+
+        </fieldset>
+
+    </form>
+
+
+<script>
+
+document
+    .getElementById("login-form")
+    .addEventListener("submit", function(event) {
+
+        event.preventDefault();
+
+
+        const username =
+            document
+                .getElementById("login-username")
+                .value
+                .trim();
+
+
+        const password =
+            document
+                .getElementById("login-password")
+                .value;
+
+
+        const message =
+            document
+                .getElementById("login-message");
+
+
+        const accounts =
+            JSON.parse(
+                localStorage.getItem(
+                    "ternixAccounts"
+                ) || "{}"
+            );
+
+
+        const account =
+            accounts[
+                username.toLowerCase()
+            ];
+
+
+        if (
+            !account ||
+            account.password !== password
+        ) {
+
+            message.textContent =
+                "Incorrect username or password.";
+
+            return;
+
+        }
+
+
+        /*
+        -------------------------------------------------
+        Создаём сессию.
+
+        Теперь game.html понимает,
+        кто вошёл.
+        -------------------------------------------------
+        */
+
+        sessionStorage.setItem(
+
+            "ternixLoggedIn",
+
+            "true"
+
+        );
+
+
+        sessionStorage.setItem(
+
+            "ternixUsername",
+
+            account.username
+
+        );
+
+
+        window.location.href =
+            "page2.html";
+
+    });
+
+</script>
+
+</body>
+</html>
