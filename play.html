@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ternix - Playing</title>
+    <link rel="shortcut icon" href="images/ternixLogo.png" type="image/x-icon">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.1/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.1/examples/jsm/",
+            "peerjs": "https://esm.sh/peerjs@1.5.4"
+        }
+    }
+    </script>
+    <style>
+        #mp-loading {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 5000;
+            display: flex; align-items: center; justify-content: center; flex-direction: column;
+            color: #fff; font-family: Arial, sans-serif; font-size: 16px; text-align: center; gap: 8px;
+        }
+        #mp-hud {
+            position: fixed; top: 40px; right: 8px; background: rgba(0,0,0,0.55);
+            color: #90EE90; font-size: 13px; font-weight: bold; padding: 6px 10px;
+            border-radius: 2px; z-index: 150; pointer-events: none; font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container"></div>
+    <div id="game-ui">
+        <div id="chat-messages"></div>
+        <div id="chat-bar">
+            <div id="chat-placeholder">Click here or press / to chat</div>
+            <input type="text" id="chat-input" maxlength="120" autocomplete="off" spellcheck="false">
+        </div>
+        <button id="game-exit">Exit</button>
+        <div id="mp-hud">Online: 1</div>
+    </div>
+    <div id="mp-loading">
+        <div>Connecting...</div>
+        <div style="font-size:12px;opacity:0.75">Joining players in this game</div>
+    </div>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyB_ypIESl-KCx-FDJrUrhdgE92O1uaMr8k",
+            authDomain: "ternix-13694.firebaseapp.com",
+            databaseURL: "https://ternix-13694-default-rtdb.firebaseio.com",
+            projectId: "ternix-13694",
+            storageBucket: "ternix-13694.firebasestorage.app",
+            messagingSenderId: "433433684244",
+            appId: "1:433433684244:web:c52b6eb37204b7b1f6ba01",
+            measurementId: "G-VM8PCVDMRW"
+        };
+        firebase.initializeApp(firebaseConfig);
+        window.ternixDB = firebase.database();
+    </script>
+    <script type="module" src="play.js"></script>
+</body>
+</html>

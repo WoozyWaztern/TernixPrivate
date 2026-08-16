@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ternix Creators</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #ffffff;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+            color: #000;
+            min-height: 100vh;
+        }
+        .top-line {
+            border-top: 3px solid #000;
+            border-bottom: 3px solid #000;
+            padding: 14px 0;
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .top-line h1 {
+            font-size: 28px;
+            color: #0000aa;
+            font-weight: bold;
+        }
+        .form-wrap { width: 320px; margin: 0 auto; }
+        label { display: block; margin-bottom: 3px; font-size: 14px; }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 4px 6px;
+            margin-bottom: 12px;
+            border: 1px solid #777;
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+        }
+        .btns { display: flex; gap: 10px; margin-top: 6px; }
+        button {
+            padding: 5px 18px;
+            font-size: 14px;
+            border: 1px solid #555;
+            background: #efefef;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+        }
+        button:hover { background: #ddd; }
+        .error { color: red; font-size: 13px; margin-top: 12px; min-height: 18px; }
+        #dashboard { display: none; text-align: center; margin-top: 30px; }
+        #dashboard h2 { font-size: 20px; color: #0000aa; margin-bottom: 20px; }
+        .big-btn {
+            display: block;
+            width: 220px;
+            margin: 10px auto;
+            padding: 10px;
+            font-size: 15px;
+            font-weight: bold;
+        }
+        .hint { font-size: 12px; color: #555; margin-top: 16px; }
+    </style>
+</head>
+<body>
+
+<div class="top-line">
+    <h1>Welcome to Ternix Creators</h1>
+</div>
+
+<div class="form-wrap" id="auth">
+    <div id="loginForm">
+        <label>Username:</label>
+        <input type="text" id="loginUser" maxlength="20">
+        <label>Password:</label>
+        <input type="password" id="loginPass">
+        <div class="btns">
+            <button type="button" onclick="doLogin()">Login</button>
+            <button type="button" onclick="showRegister()">Register</button>
+        </div>
+    </div>
+    <div id="registerForm" style="display:none;">
+        <label>Username:</label>
+        <input type="text" id="regUser" maxlength="20">
+        <label>Password:</label>
+        <input type="password" id="regPass">
+        <div class="btns">
+            <button type="button" onclick="doRegister()">Register</button>
+            <button type="button" onclick="showLogin()">Login</button>
+        </div>
+    </div>
+    <div class="error" id="errorMsg"></div>
+</div>
+
+<div id="dashboard">
+    <h2>Welcome, <span id="userName"></span>!</h2>
+    <button class="big-btn" type="button" onclick="startNewPlace()">New Place</button>
+    <button class="big-btn" type="button" id="continueBtn" style="display:none; font-weight:normal;" onclick="continuePlace()">Continue Place</button>
+    <button class="big-btn" type="button" style="font-weight:normal;" onclick="goHub()">Back to Ternix</button>
+    <button class="big-btn" type="button" style="font-weight:normal;" onclick="logout()">Logout</button>
+    <p class="hint">Each account can publish only 1 game.</p>
+</div>
+
+<script>
+/* ========== MULTI-ACCOUNT STORAGE ========== */
+function getAccounts() {
+    try {
+        const raw = localStorage.getItem("ternix_creators_accounts");
+        if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) return arr;
+        }
+    } catch (e) {}
+    // migrate old single account
+    const u = localStorage.getItem("ternix_creators_user");
+    const p = localStorage.getItem("ternix_creators_pass");
+    if (u && p) {
+        const arr = [{ user: u, pass: p }];
+        localStorage.setItem("ternix_creators_accounts", JSON.stringify(arr));
+        return arr;
+    }
+    return [];
+}
+function saveAccounts(arr) {
+    localStorage.setItem("ternix_creators_accounts", JSON.stringify(arr));
+}
+function setCurrentUser(username) {
+    localStorage.setItem("ternix_creators_user", username);
+    localStorage.setItem("ternix_creators_logged", "true");
+}
+
+function showRegister() {
+    document.getElementById("loginForm").style.display = "none";
+    document.getElementById("registerForm").style.display = "block";
+    document.getElementById("errorMsg").textContent = "";
+}
+function showLogin() {
+    document.getElementById("registerForm").style.display = "none";
+    document.getElementById("loginForm").style.display = "block";
+    document.getElementById("errorMsg").textContent = "";
+}
+
+function doRegister() {
+    const user = document.getElementById("regUser").value.trim();
+    const pass = document.getElementById("regPass").value;
+    const error = document.getElementById("errorMsg");
+    if (user.length < 3) { error.textContent = "Username min 3 characters"; return; }
+    if (pass.length < 4) { error.textContent = "Password min 4 characters"; return; }
+    if (!/^[A-Za-z0-9_]+$/.test(user)) {
+        error.textContent = "Only letters, numbers and _";
+        return;
+    }
+    const accounts = getAccounts();
+    if (accounts.some(a => a.user.toLowerCase() === user.toLowerCase())) {
+        error.textContent = "This username is already registered";
+        return;
+    }
+    accounts.push({ user: user, pass: pass });
+    saveAccounts(accounts);
+    setCurrentUser(user);
+    showDashboard(user);
+}
+
+function doLogin() {
+    const user = document.getElementById("loginUser").value.trim();
+    const pass = document.getElementById("loginPass").value;
+    const error = document.getElementById("errorMsg");
+    const accounts = getAccounts();
+    if (accounts.length === 0) {
+        error.textContent = "No account found. Please Register first.";
+        return;
+    }
+    const found = accounts.find(a => a.user.toLowerCase() === user.toLowerCase() && a.pass === pass);
+    if (!found) {
+        error.textContent = "Incorrect username or password";
+        return;
+    }
+    setCurrentUser(found.user);
+    showDashboard(found.user);
+}
+
+function showDashboard(username) {
+    document.getElementById("auth").style.display = "none";
+    document.getElementById("dashboard").style.display = "block";
+    document.getElementById("userName").textContent = username;
+    // show Continue only if this user has a saved place
+    const place = localStorage.getItem("ternix_place_" + username);
+    document.getElementById("continueBtn").style.display = place ? "block" : "none";
+}
+
+function startNewPlace() {
+    const user = localStorage.getItem("ternix_creators_user");
+    if (user) localStorage.removeItem("ternix_place_" + user);
+    window.location.href = "studio.html";
+}
+function continuePlace() {
+    window.location.href = "studio.html";
+}
+function goHub() {
+    window.location.href = "../game.html";
+}
+function logout() {
+    localStorage.removeItem("ternix_creators_logged");
+    // keep accounts and places, only clear session
+    location.reload();
+}
+
+// NEVER auto-open studio — always show dashboard or login
+if (localStorage.getItem("ternix_creators_logged") === "true") {
+    const u = localStorage.getItem("ternix_creators_user");
+    if (u) showDashboard(u);
+}
+
+function resizeCursorImage(imgUrl, callback) {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = imgUrl;
+    img.onload = function () {
+        const c = document.createElement("canvas");
+        c.width = 90; c.height = 90;
+        const ctx = c.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 0, 0, 90, 90);
+        callback(c.toDataURL("image/png"));
+    };
+    img.onerror = function () { img.removeAttribute("crossOrigin"); img.src = imgUrl; };
+}
+window.addEventListener("DOMContentLoaded", () => {
+    resizeCursorImage("../cursor/Ternix 3 cursor.png", (url3) => {
+        resizeCursorImage("../cursor/Ternix 1 cursor.png", (urlDef) => {
+            const s = document.createElement("style");
+            s.innerHTML = `* { cursor: url('${urlDef}') 0 0, auto !important; }
+            a, a *, button, button *, input, select, textarea, img { cursor: url('${url3}') 0 0, pointer !important; }`;
+            document.head.appendChild(s);
+        });
+    });
+});
+</script>
+</body>
+</html>

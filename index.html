@@ -2,278 +2,565 @@
 <html lang="en">
 
 <head>
-
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ternix</title>
+    <link rel="shortcut icon" href="Images/ternixLogo.png" type="image/x-icon">
 
-    <link
-        rel="shortcut icon"
-        href="Images/ternixLogo.png"
-        type="image/x-icon"
-    >
+    <style>
+        .cursor-variant-1,
+        .cursor-variant-1 * {
+            cursor: auto;
+        }
 
-    <link
-        rel="stylesheet"
-        href="style.css"
-    >
+        .cursor-variant-2,
+        .cursor-variant-2 * {
+            cursor: auto;
+        }
 
+        a,
+        a *,
+        button,
+        button *,
+        input,
+        select,
+        textarea,
+        img,
+        fieldset,
+        legend,
+        video {
+            cursor: pointer;
+        }
+    </style>
 </head>
 
-<body class="auth-page">
+<body style="margin: 0; padding: 0; background-color: #ffffff;">
 
-    <img
-        src="Images/ternixFullLogo.png"
-        class="auth-logo"
-        alt="Ternix"
-    >
+    <img src="Images/ternixFullLogo.png"
+         alt="Ternix Logo"
+         width="250"
+         height="80"
+         title="Ternix Logo">
 
-    <div class="auth-title">
-        Welcome to Ternix!
-    </div>
+    <table border="3" width="100%">
+        <tr>
+            <td>
+                <p style="text-align: center; font-size: 40px; color: #300b6b; margin: 0;">
+                    Welcome to Ternix!
+                </p>
+            </td>
+        </tr>
+    </table>
 
-
-    <div class="auth-container">
+    <div style="display: flex; align-items: flex-start; gap: 20px;">
 
         <!-- REGISTRATION -->
 
-        <form
-            id="register-form"
-            class="auth-box"
-        >
+        <form id="registrationForm">
 
-            <fieldset>
+            <fieldset style="border: 2px solid #000000; padding: 30px; margin: 2px; width: 400px;">
 
-                <legend>
+                <legend style="font-size: 16px; color: #000000; font-weight: bold; padding: 0 5px;">
                     Registration
                 </legend>
 
-                <label for="username">
+                <label for="username" style="font-size: 14px;">
                     Username:
                 </label>
-
                 <br>
 
                 <input
                     type="text"
                     id="username"
+                    name="username"
                     required
-                    minlength="3"
                     maxlength="20"
-                    autocomplete="off"
+                    style="font-size: 14px; width: 80%; padding: 3px; margin-top: 3px;"
                 >
 
-                <br>
-                <br>
+                <br><br>
 
-                <label for="password">
+                <label for="password" style="font-size: 14px;">
                     Password:
                 </label>
-
                 <br>
 
                 <input
                     type="password"
                     id="password"
+                    name="password"
                     required
                     minlength="8"
-                    maxlength="100"
+                    style="font-size: 14px; width: 80%; padding: 3px; margin-top: 3px;"
                 >
 
-                <br>
-                <br>
+                <br><br>
 
                 <input
                     type="submit"
                     value="Register"
-                    class="auth-button"
+                    style="font-size: 14px; padding: 5px 25px; cursor: pointer;"
                 >
 
                 <a
                     href="login.html"
-                    class="auth-link"
-                >
+                    style="
+                        font-size: 14px;
+                        padding: 5px 25px;
+                        cursor: pointer;
+                        color: #000000;
+                        text-decoration: none;
+                        margin-left: 10px;
+                        border: 1px solid #767676;
+                        background-color: #efefef;
+                        display: inline-block;
+                        border-radius: 2px;
+                        font-family: Arial, sans-serif;
+                    ">
                     Login
                 </a>
 
-                <div
-                    id="register-message"
-                    class="auth-error"
-                ></div>
+                <p id="registerError"
+                   style="color: red; font-size: 13px; margin-bottom: 0;">
+                </p>
 
             </fieldset>
 
         </form>
 
+        <!-- REPORT & IDEAS -->
 
-        <!-- INFORMATION -->
+        <fieldset style="
+            border: 2px solid #000000;
+            padding: 30px;
+            margin: 2px;
+            width: 920px;
+            height: 175px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        ">
 
-        <fieldset
-            style="
-                border:2px solid black;
-                padding:30px;
-                width:920px;
-                height:175px;
-            "
-        >
-
-            <legend>
+            <legend style="font-size: 16px; color: #000000; font-weight: bold; padding: 0 5px;">
                 Report & ideas
             </legend>
 
-            <p>
-                Welcome to Ternix!
-            </p>
+            <form
+                action="https://formsubmit.co"
+                method="post"
+                style="
+                    display: flex;
+                    align-items: center;
+                    width: 100%;
+                    gap: 10px;
+                    margin: 0;
+                ">
 
-            <p>
-                Create your account and then login
-                to start playing.
-            </p>
+                <label for="report-text"
+                       style="font-size: 14px; white-space: nowrap;">
+                    Report:
+                </label>
 
-            <p>
-                Ternix is currently in development.
-            </p>
+                <input
+                    type="text"
+                    id="report-text"
+                    name="Report_Message"
+                    required
+                    style="
+                        font-size: 14px;
+                        flex-grow: 1;
+                        padding: 5px;
+                    "
+                >
+
+                <input
+                    type="submit"
+                    value="Submit"
+                    style="font-size: 14px; padding: 5px 25px; cursor: pointer;"
+                >
+
+            </form>
+
+            <form
+                action="https://formsubmit.co"
+                method="post"
+                style="
+                    display: flex;
+                    align-items: center;
+                    width: 100%;
+                    gap: 10px;
+                    margin: 0;
+                ">
+
+                <label for="ideas-text"
+                       style="font-size: 14px; white-space: nowrap;">
+                    Ideas:
+                </label>
+
+                <input
+                    type="text"
+                    id="ideas-text"
+                    name="Ideas_Message"
+                    required
+                    style="
+                        font-size: 14px;
+                        flex-grow: 1;
+                        padding: 5px;
+                    "
+                >
+
+                <input
+                    type="submit"
+                    value="Submit"
+                    style="font-size: 14px; padding: 5px 25px; cursor: pointer;"
+                >
+
+            </form>
 
         </fieldset>
 
+        <video
+            src="video/Ternix Gameplay.mp4"
+            controls
+            width="405"
+            style="margin-top: 10px; border: 2px solid #000000;">
+        </video>
+
     </div>
 
+    <!-- SUPPORT -->
 
-<script>
+    <fieldset style="
+        border: 2px solid #02c002;
+        padding: 30px;
+        margin: 10px;
+        width: fit-content;
+    ">
 
-/* =====================================================
-   REGISTRATION
-===================================================== */
+        <legend style="
+            font-size: 16px;
+            color: #006605;
+            font-weight: bold;
+            padding: 0 5px;
+        ">
+            Support&Playing
+        </legend>
 
-document
-    .getElementById("register-form")
-    .addEventListener("submit", function(event) {
+        <p style="
+            text-align: left;
+            font-size: 25px;
+            color: #00ac00;
+            margin: 0;
+        ">
+            Game will broken?
+        </p>
 
-        event.preventDefault();
+        <div style="
+            border: 0px solid black;
+            text-align: left;
+            line-height: 0.8;
+        ">
 
+            <p style="
+                font-size: 25px;
+                color: #00ac00;
+                margin: 0;
+                display: inline-block;
+                vertical-align: middle;
+            ">
+                <u>
+                    Click the Help button and there you will find all Ternix problems!
+                </u>
+            </p>
 
-        const username =
-            document
-                .getElementById("username")
-                .value
-                .trim();
+        </div>
 
+        <a href="page3.html">
+            <img
+                src="Images/ternix help button.png"
+                alt="Ternix Help"
+                width="250">
+        </a>
 
-        const password =
-            document
-                .getElementById("password")
-                .value;
+        <ul>
 
+            <li style="
+                text-align: left;
+                font-size: 20px;
+                color: #006900;
+                margin: 0;
+            ">
+                Play now and free this game make you fun!
+            </li>
 
-        const message =
-            document
-                .getElementById("register-message");
+            <li style="
+                text-align: left;
+                font-size: 20px;
+                color: #006900;
+                margin: 0;
+            ">
+                All games is actually free Play with freinds and have fun!
+            </li>
 
+            <li style="
+                text-align: left;
+                font-size: 20px;
+                color: #006900;
+                margin: 0;
+            ">
+                Have a great time! Ternix game actually is have great graphics and games!
+            </li>
 
-        if (username.length < 3) {
+        </ul>
 
-            message.textContent =
-                "Username must contain at least 3 characters.";
+        <table border="0" width="100%" style="border-collapse: collapse; margin: 0;">
 
-            return;
+            <tr>
+
+                <td style="text-align: left; padding: 0;">
+
+                    <a href="page2.html">
+
+                        <img
+                            src="Images/Ternix Play now Button.png"
+                            style="display: block;"
+                        >
+
+                    </a>
+
+                </td>
+
+            </tr>
+
+        </table>
+
+    </fieldset>
+
+    <!-- CURSOR -->
+
+    <script>
+
+        function resizeCursorImage(imgUrl, callback) {
+
+            const img = new Image();
+
+            img.crossOrigin = "anonymous";
+            img.src = imgUrl;
+
+            img.onload = function () {
+
+                const canvas = document.createElement("canvas");
+
+                const targetSize = 90;
+
+                canvas.width = targetSize;
+                canvas.height = targetSize;
+
+                const ctx = canvas.getContext("2d");
+
+                ctx.imageSmoothingEnabled = false;
+
+                ctx.drawImage(
+                    img,
+                    0,
+                    0,
+                    targetSize,
+                    targetSize
+                );
+
+                callback(canvas.toDataURL("image/png"));
+            };
+
+            img.onerror = function () {
+
+                img.removeAttribute("crossOrigin");
+                img.src = imgUrl;
+
+            };
 
         }
 
+        window.addEventListener("DOMContentLoaded", () => {
 
-        if (password.length < 8) {
+            resizeCursorImage(
+                "cursor/Ternix 3 cursor.png",
+                (cleanUrl3) => {
 
-            message.textContent =
-                "Password must contain at least 8 characters.";
+                    const randomChoice =
+                        Math.floor(Math.random() * 2);
 
-            return;
+                    const chosenCursorUrl =
+                        randomChoice === 0
+                            ? "cursor/Ternix 1 cursor.png"
+                            : "cursor/Ternix 2 cursor.png";
 
-        }
+                    resizeCursorImage(
+                        chosenCursorUrl,
+                        (cleanUrlDefault) => {
 
+                            const style =
+                                document.createElement("style");
 
-        /*
-        -------------------------------------------------
-        ВАЖНО:
+                            style.innerHTML = `
 
-        Это локальная версия.
+                                *, body {
 
-        Для настоящего сайта пароль нельзя
-        хранить так. Позже подключим сервер.
-        -------------------------------------------------
-        */
+                                    cursor:
+                                        url('${cleanUrlDefault}')
+                                        0 0,
+                                        auto !important;
 
-        const accounts =
-            JSON.parse(
-                localStorage.getItem(
-                    "ternixAccounts"
-                ) || "{}"
+                                }
+
+                                a, a *,
+                                button, button *,
+                                input, select,
+                                textarea, img,
+                                fieldset, legend,
+                                video {
+
+                                    cursor:
+                                        url('${cleanUrl3}')
+                                        0 0,
+                                        pointer !important;
+
+                                }
+
+                            `;
+
+                            document.head.appendChild(style);
+
+                        }
+                    );
+
+                }
             );
 
+        });
 
-        const key =
-            username.toLowerCase();
+    </script>
 
+    <!-- COPYRIGHT -->
 
-        if (accounts[key]) {
+    <table border="3" width="100%">
 
-            message.textContent =
-                "This username is already registered.";
+        <tr>
 
-            return;
+            <td>
 
-        }
+                <p style="
+                    text-align: center;
+                    font-size: 20px;
+                    color: #000000;
+                    margin: 0;
+                ">
+                    ©Ternix is ​​an official company. 2026.
+                    The domain is owned by the logo and game mechanics.
+                    They are copyrighted and protected by most countries in Asia,
+                    Europe, North and South America.
+                    Ternix founder WoozyWaztern is a copyright infringer.
+                    Ternix was created without extremist intentions.
+                    Ternix is ​​not responsible for incidents between players.
+                    Contact us. ©
+                </p>
 
+            </td>
 
-        accounts[key] = {
+        </tr>
 
-            username: username,
+    </table>
 
-            password: password
+    <!-- REGISTRATION LOGIC -->
 
-        };
+    <script>
 
+        const registrationForm =
+            document.getElementById("registrationForm");
 
-        localStorage.setItem(
+        registrationForm.addEventListener("submit", function (event) {
 
-            "ternixAccounts",
+            event.preventDefault();
 
-            JSON.stringify(accounts)
+            const username =
+                document.getElementById("username").value.trim();
 
-        );
+            const password =
+                document.getElementById("password").value;
 
+            const error =
+                document.getElementById("registerError");
 
-        message.className =
-            "auth-success";
+            error.textContent = "";
 
+            if (username.length < 3) {
 
-        message.textContent =
-            "Registration successful! Please login.";
+                error.textContent =
+                    "Username must contain at least 3 characters.";
 
+                return;
+            }
 
-        /*
-        Не отправляем пользователя сразу
-        в игру.
+            if (username.length > 20) {
 
-        Сначала LOGIN.
-        */
+                error.textContent =
+                    "Username cannot be longer than 20 characters.";
 
-        setTimeout(
-            () => {
+                return;
+            }
 
-                window.location.href =
-                    "login.html";
+            if (!/^[A-Za-z0-9_]+$/.test(username)) {
 
-            },
-            1000
-        );
+                error.textContent =
+                    "Username can contain only letters, numbers and _.";
 
-    });
+                return;
+            }
 
-</script>
+            if (password.length < 8) {
+
+                error.textContent =
+                    "Password must contain at least 8 characters.";
+
+                return;
+            }
+
+            const existingUser =
+                localStorage.getItem("ternix_registered_user");
+
+            if (existingUser &&
+                existingUser.toLowerCase() === username.toLowerCase()) {
+
+                error.textContent =
+                    "This username is already registered.";
+
+                return;
+            }
+
+            localStorage.setItem(
+                "ternix_registered_user",
+                username
+            );
+
+            localStorage.setItem(
+                "ternix_registered_password",
+                password
+            );
+
+            localStorage.setItem(
+                "ternix_user",
+                username
+            );
+
+            localStorage.setItem(
+                "ternix_logged_in",
+                "true"
+            );
+
+            window.location.href = "game.html";
+
+        });
+
+    </script>
 
 </body>
 </html>

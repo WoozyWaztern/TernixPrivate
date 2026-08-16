@@ -1,389 +1,50 @@
-* {
-    box-sizing: border-box;
+* { box-sizing: border-box; }
+html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background: #87CEEB;
+    font-family: Arial, Helvetica, sans-serif; user-select: none;
 }
-
-html,
-body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
+#game-container { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 0; }
+canvas {
+    position: fixed; left: 0; top: 0;
+    width: 100% !important; height: 100% !important;
+    display: block; outline: none;
 }
-
-body {
-    font-family: Arial, Helvetica, sans-serif;
-    background: white;
-    color: #111;
+#game-ui {
+    position: fixed; left: 0; top: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 100;
 }
-
-/* =====================================================
-   GAME
-===================================================== */
-
-#game-page {
-    overflow: hidden;
-    background: #87CEEB;
-}
-
-#game-page canvas {
-    position: fixed;
-    left: 0;
-    top: 50px;
-    width: 100%;
-    height: calc(100% - 50px);
-    display: block;
-}
-
-/* =====================================================
-   GAME TOP BAR
-===================================================== */
-
-#game-topbar {
-    position: fixed;
-    z-index: 1000;
-
-    left: 0;
-    top: 0;
-
-    width: 100%;
-    height: 50px;
-
-    background: rgba(245, 245, 245, 0.96);
-
-    border-bottom: 1px solid #777;
-
-    display: flex;
-    align-items: center;
-
-    pointer-events: auto;
-}
-
-/* =====================================================
-   EXIT
-===================================================== */
-
-#exit-button {
-    position: absolute;
-
-    right: 4px;
-    top: 4px;
-
-    height: 42px;
-
-    padding: 0 18px;
-
-    border: 1px solid #700000;
-
-    background: #d00000;
-
-    color: white;
-
-    font-size: 15px;
-    font-weight: bold;
-
-    cursor: pointer;
-
-    border-radius: 2px;
-}
-
-#exit-button:hover {
-    background: #ed0000;
-}
-
-#exit-button:active {
-    background: #a00000;
-}
-
-/* =====================================================
-   CHAT HISTORY
-===================================================== */
-
 #chat-messages {
-    position: fixed;
-
-    z-index: 1100;
-
-    left: 10px;
-    top: 60px;
-
-    width: 360px;
-
-    display: flex;
-    flex-direction: column;
-
-    gap: 2px;
-
-    pointer-events: none;
+    position: absolute; left: 1px; top: 40px; width: 336px;
+    display: flex; flex-direction: column; gap: 2px; pointer-events: none;
 }
-
 .chat-history-message {
-    width: fit-content;
-
-    max-width: 360px;
-
-    padding: 3px 7px;
-
-    background: rgba(65, 65, 65, 0.82);
-
-    border: 1px solid rgba(20, 20, 20, 0.8);
-
-    border-radius: 2px;
-
-    color: white;
-
-    font-size: 14px;
-
-    line-height: 17px;
-
-    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.8);
-
-    word-break: break-word;
+    width: fit-content; max-width: 336px; min-height: 23px; padding: 3px 8px;
+    background: rgba(70,70,70,0.78); border: 1px solid rgba(20,20,20,0.75);
+    border-radius: 1px; color: white; font-size: 14px; line-height: 16px;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.8); word-break: break-word;
 }
-
-/* =====================================================
-   CHAT BAR
-===================================================== */
-
 #chat-bar {
-    position: fixed;
-
-    z-index: 1200;
-
-    left: 10px;
-    bottom: 10px;
-
-    width: 520px;
-    max-width: calc(100vw - 20px);
-
-    height: 34px;
-
-    background: rgba(45, 45, 45, 0.78);
-
-    border: 1px solid rgba(255, 255, 255, 0.5);
-
-    border-radius: 2px;
-
-    cursor: text;
-
-    pointer-events: auto;
+    position: absolute; left: 1px; bottom: 1px; width: calc(100% - 2px); height: 34px;
+    background: rgba(61,54,54,0.75); border: 1px solid rgba(0,0,0,0.45);
+    border-radius: 2px; pointer-events: auto; cursor: text;
 }
-
-#chat-bar.active {
-    background: rgba(30, 30, 30, 0.94);
-
-    border-color: white;
-}
-
 #chat-placeholder {
-    position: absolute;
-
-    left: 8px;
-    top: 7px;
-
-    color: #e5e5e5;
-
-    font-size: 14px;
-
-    pointer-events: none;
+    position: absolute; left: 9px; top: 9px;
+    color: rgba(209,197,197,0.9); font-size: 14px; pointer-events: none;
 }
-
 #chat-input {
-    display: none;
-
-    position: absolute;
-
-    left: 7px;
-    top: 3px;
-
-    width: calc(100% - 14px);
-    height: 26px;
-
-    padding: 0;
-
-    border: 0;
-    outline: 0;
-
-    background: transparent;
-
-    color: white;
-
-    font-size: 14px;
-
-    font-family: Arial, sans-serif;
-
-    user-select: text;
+    position: absolute; left: 7px; top: 3px; width: calc(100% - 14px); height: 27px;
+    border: none; outline: none; background: transparent; color: white;
+    font-size: 14px; font-family: Arial, Helvetica, sans-serif; display: none; user-select: text;
 }
-
-/* =====================================================
-   LOGIN / REGISTER
-===================================================== */
-
-.auth-page {
-    min-height: 100vh;
-
-    background: white;
+#chat-bar.active {
+    background: rgba(35,35,35,0.94); border-color: rgba(255,255,255,0.75);
 }
-
-.auth-logo {
-    width: 250px;
-    height: 80px;
-
-    object-fit: contain;
+#game-exit {
+    position: absolute; left: 1px; top: 1px; width: 80px; height: 34px;
+    pointer-events: auto; background: rgba(148,25,25,0.82);
+    border: 1px solid rgba(139,8,8,0.55); color: white; font-size: 14px;
+    border-radius: 2px; cursor: pointer; z-index: 200;
 }
-
-.auth-title {
-    width: 100%;
-
-    border: 3px solid black;
-
-    margin: 0;
-
-    padding: 3px;
-
-    text-align: center;
-
-    font-size: 40px;
-
-    color: #300b6b;
-}
-
-.auth-container {
-    display: flex;
-
-    align-items: flex-start;
-
-    gap: 20px;
-
-    padding: 2px;
-}
-
-.auth-box {
-    border: 2px solid black;
-
-    padding: 30px;
-
-    margin: 0;
-
-    width: 400px;
-}
-
-.auth-box legend {
-    font-size: 16px;
-
-    font-weight: bold;
-
-    padding: 0 5px;
-}
-
-.auth-box label {
-    font-size: 14px;
-}
-
-.auth-box input[type="text"],
-.auth-box input[type="password"] {
-    width: 80%;
-
-    padding: 4px;
-
-    font-size: 14px;
-
-    margin-top: 3px;
-}
-
-.auth-button {
-    font-size: 14px;
-
-    padding: 5px 25px;
-
-    cursor: pointer;
-}
-
-.auth-link {
-    font-size: 14px;
-
-    padding: 5px 25px;
-
-    margin-left: 10px;
-
-    color: black;
-
-    text-decoration: none;
-
-    border: 1px solid #767676;
-
-    background: #efefef;
-
-    display: inline-block;
-
-    border-radius: 2px;
-}
-
-.auth-error {
-    color: #c00000;
-
-    font-size: 14px;
-
-    margin-top: 10px;
-}
-
-.auth-success {
-    color: #008000;
-
-    font-size: 14px;
-
-    margin-top: 10px;
-}
-
-/* =====================================================
-   OLD TERNIX MENU
-===================================================== */
-
-.menu-page {
-    margin: 0;
-    padding: 0;
-
-    background: white;
-}
-
-.menu-row {
-    display: flex;
-
-    justify-content: center;
-    align-items: center;
-
-    gap: 30px;
-
-    margin-top: 50px;
-
-    width: 100%;
-
-    flex-wrap: wrap;
-}
-
-.menu-link {
-    font-size: 40px;
-
-    color: #81817e;
-
-    text-decoration: none;
-
-    font-weight: bold;
-
-    font-family: Arial, sans-serif;
-
-    white-space: nowrap;
-}
-
-.menu-link:hover {
-    color: #555;
-}
-
-.play-button {
-    display: block;
-
-    width: 250px;
-
-    margin: 50px auto;
-
-    cursor: pointer;
-}
+#game-exit:hover { background: rgba(15,12,12,0.95); }
