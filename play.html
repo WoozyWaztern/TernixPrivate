@@ -12,8 +12,7 @@
     {
         "imports": {
             "three": "https://unpkg.com/three@0.160.1/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.160.1/examples/jsm/",
-            "peerjs": "https://esm.sh/peerjs@1.5.4"
+            "three/addons/": "https://unpkg.com/three@0.160.1/examples/jsm/"
         }
     }
     </script>
@@ -23,10 +22,34 @@
             display: flex; align-items: center; justify-content: center; flex-direction: column;
             color: #fff; font-family: Arial, sans-serif; font-size: 16px; text-align: center; gap: 8px;
         }
-        #mp-hud {
-            position: fixed; top: 40px; right: 8px; background: rgba(0,0,0,0.55);
-            color: #90EE90; font-size: 13px; font-weight: bold; padding: 6px 10px;
-            border-radius: 2px; z-index: 150; pointer-events: none; font-family: Arial, sans-serif;
+        #disc-overlay {
+            display: none; position: fixed; inset: 0; z-index: 99999;
+            background: rgba(30,30,30,0.75);
+            align-items: center; justify-content: center;
+        }
+        #disc-overlay.show { display: flex; }
+        #disc-overlay.scary { background: rgba(0,0,0,0.9); }
+        #disc-box {
+            background: rgba(50,50,50,0.92);
+            border: 2px solid #333;
+            color: #eee;
+            font-family: Arial, Helvetica, sans-serif;
+            padding: 28px 32px;
+            max-width: 400px;
+            width: 88%;
+            text-align: center;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+        }
+        #disc-overlay.scary #disc-box {
+            background: rgba(28,0,0,0.96);
+            border-color: #500;
+        }
+        #disc-code { font-size: 22px; font-weight: bold; margin-bottom: 12px; color: #ff6b6b; }
+        #disc-overlay.scary #disc-code { color: #ff2020; font-size: 24px; }
+        #disc-msg { font-size: 15px; line-height: 1.5; white-space: pre-wrap; }
+        #disc-ok {
+            margin-top: 18px; padding: 8px 22px; cursor: pointer;
+            border: 1px solid #555; background: #ddd; font-size: 14px;
         }
     </style>
 </head>
@@ -41,8 +64,15 @@
         <button id="game-exit">Exit</button>
     </div>
     <div id="mp-loading">
-        <div>Connecting...</div>
-        <div style="font-size:12px;opacity:0.75">Joining players in this game</div>
+        <div>Loading...</div>
+        <div style="font-size:12px;opacity:0.75">Connecting to game</div>
+    </div>
+    <div id="disc-overlay">
+        <div id="disc-box">
+            <div id="disc-code"></div>
+            <div id="disc-msg"></div>
+            <button type="button" id="disc-ok">OK</button>
+        </div>
     </div>
     <script>
         const firebaseConfig = {
@@ -55,7 +85,7 @@
             appId: "1:433433684244:web:c52b6eb37204b7b1f6ba01",
             measurementId: "G-VM8PCVDMRW"
         };
-        firebase.initializeApp(firebaseConfig);
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         window.ternixDB = firebase.database();
     </script>
     <script type="module" src="play.js"></script>

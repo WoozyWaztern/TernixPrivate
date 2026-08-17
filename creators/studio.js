@@ -15,7 +15,7 @@ const SETTINGS = {
     mouseSensitivity: 0.0032,
     cameraMinPitch: -1.2,
     cameraMaxPitch: 1.35,
-    studsPerUnit: 2.5,
+    studsPerUnit: 1.15,
     blockSize: 2
 };
 
@@ -39,8 +39,8 @@ let placeName = "Untitled Place";
 let selectedBlock = null;
 const placedBlocks = [];
 
-const currentUser = localStorage.getItem("ternix_creators_user");
-if (!currentUser || localStorage.getItem("ternix_creators_logged") !== "true") {
+const currentUser = localStorage.getItem("ternix_creators_user") || localStorage.getItem("ternix_user");
+if (!currentUser || (localStorage.getItem("ternix_creators_logged") !== "true" && localStorage.getItem("ternix_logged_in") !== "true")) {
     window.location.href = "index.html";
 }
 
@@ -49,7 +49,6 @@ scene.background = new THREE.Color(0x87CEEB);
 scene.fog = new THREE.Fog(0x87CEEB, 50, 140);
 
 const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 500);
-
 let camYaw = Math.PI;
 let camPitch = -0.35;
 camera.position.set(0, 14, 22);
@@ -97,14 +96,11 @@ function getSolidMaterial(color) {
 }
 
 function getBlockMaterial(color, width, depth) {
-    if (!blockTexture || !blockTexture.image) {
-        return getSolidMaterial(color);
-    }
+    if (!blockTexture || !blockTexture.image) return getSolidMaterial(color);
     const repeatX = width * SETTINGS.studsPerUnit;
     const repeatY = depth * SETTINGS.studsPerUnit;
     const key = color + "_" + repeatX + "x" + repeatY;
     if (materialCache.has(key)) return materialCache.get(key);
-
     const mat = new THREE.ShaderMaterial({
         uniforms: {
             map: { value: blockTexture },
@@ -167,13 +163,9 @@ blockTexture = textureLoader.load(
                 mat.needsUpdate = true;
             }
         });
-        console.log("Texture loaded");
     },
     undefined,
-    () => {
-        console.warn("Texture missing — solid colors");
-        blockTexture = null;
-    }
+    () => { blockTexture = null; }
 );
 
 function createBasePlatform() {
@@ -205,24 +197,19 @@ let verticalVelocity = 0;
 let onGround = false;
 
 let character = null;
-let mixer = null;
-let walkAction = null;
-let jumpAction = null;
-let fallAction = null;
+let animParts = { leftArm: null, rightArm: null, leftLeg: null, rightLeg: null };
+let useLimbAnim = false;
+let animTime = 0;
 
 function setupCharacter(root) {
     character = root;
     character.traverse((obj) => {
         if (obj.isMesh) {
             obj.frustumCulled = true;
-            obj.castShadow = false;
-            obj.receiveShadow = false;
             if (obj.material) {
                 const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
                 mats.forEach((m) => {
                     if (m.map && !m.map.image) { m.map = null; m.needsUpdate = true; }
-                    if (m.normalMap && !m.normalMap.image) { m.normalMap = null; m.needsUpdate = true; }
-                    if (m.emissiveMap && !m.emissiveMap.image) { m.emissiveMap = null; m.needsUpdate = true; }
                 });
             }
         }
@@ -238,67 +225,65 @@ function setupCharacter(root) {
     character.position.z -= center.z;
     character.position.y -= fixedBox.min.y;
     player.add(character);
+    classifyLimbs(character);
+}
+
+function classifyLimbs(root) {
+    animParts = { leftArm: null, rightArm: null, leftLeg: null, rightLeg: null };
+    if (!root) return;
+    root.updateMatrixWorld(true);
+    const meshes = [];
+    root.traverse((o) => {
+        if (!o.isMesh) return;
+        const n = (o.name || "").toLowerCase();
+        if (n.includes("head") || n.includes("face") || n.includes("eye")) return;
+        const box = new THREE.Box3().setFromObject(o);
+        const c = new THREE.Vector3();
+        box.getCenter(c);
+        root.worldToLocal(c);
+        o.userData.baseRotX = o.rotation.x;
+        o.userData.baseRotY = o.rotation.y;
+        o.userData.baseRotZ = o.rotation.z;
+        o.userData.localCenter = c.clone();
+        meshes.push(o);
+    });
+    if (meshes.length < 3) return;
+    meshes.sort((a, b) => b.userData.localCenter.y - a.userData.localCenter.y);
+    const body = meshes.slice(1);
+    body.sort((a, b) => a.userData.localCenter.y - b.userData.localCenter.y);
+    const legPool = body.slice(0, Math.min(2, body.length));
+    if (legPool.length >= 2) {
+        legPool.sort((a, b) => a.userData.localCenter.x - b.userData.localCenter.x);
+        animParts.leftLeg = legPool[0];
+        animParts.rightLeg = legPool[legPool.length - 1];
+    }
+    const legSet = new Set([animParts.leftLeg, animParts.rightLeg]);
+    const rest = body.filter((m) => !legSet.has(m));
+    rest.sort((a, b) => Math.abs(b.userData.localCenter.x) - Math.abs(a.userData.localCenter.x));
+    if (rest.length >= 2) {
+        const arms = rest.slice(0, 2).sort((a, b) => a.userData.localCenter.x - b.userData.localCenter.x);
+        animParts.leftArm = arms[0];
+        animParts.rightArm = arms[arms.length - 1];
+    }
+    useLimbAnim = !!(animParts.leftArm || animParts.rightArm || animParts.leftLeg || animParts.rightLeg);
+}
+
+function setLimbX(mesh, extraX) {
+    if (!mesh || mesh.userData.baseRotX === undefined) return;
+    mesh.rotation.x = mesh.userData.baseRotX + extraX;
 }
 
 const gltfLoader = new GLTFLoader();
-
-gltfLoader.load(
-    "../TernixGuy.glb",
-    (gltf) => {
-        setupCharacter(gltf.scene);
-        if (gltf.animations && gltf.animations.length > 0) {
-            mixer = new THREE.AnimationMixer(character);
-            for (const clip of gltf.animations) {
-                const name = clip.name.toLowerCase();
-                const action = mixer.clipAction(clip);
-                if (name.includes("walk") || name.includes("run")) walkAction = action;
-                if (name.includes("jump")) jumpAction = action;
-                if (name.includes("fall")) fallAction = action;
-            }
-        }
-        loadExternalAnimations();
-    },
-    undefined,
-    () => {
-        const body = new THREE.Mesh(
-            new THREE.BoxGeometry(1, 1.4, 0.65),
-            new THREE.MeshLambertMaterial({ color: 0xffffff })
-        );
-        body.position.y = 0.7;
-        player.add(body);
-        const head = new THREE.Mesh(
-            new THREE.BoxGeometry(0.85, 0.85, 0.85),
-            new THREE.MeshLambertMaterial({ color: 0xe2bd91 })
-        );
-        head.position.y = 1.8;
-        player.add(head);
-    }
-);
-
-function loadExternalAnimations() {
-    if (!character) return;
-    if (!mixer) mixer = new THREE.AnimationMixer(character);
-
-    const tryLoad = (path, assign) => {
-        gltfLoader.load(path, (gltf) => {
-            if (!gltf.animations || !gltf.animations.length) return;
-            const clip = gltf.animations[0];
-            try {
-                const action = mixer.clipAction(clip);
-                assign(action);
-                console.log("Loaded animation:", path);
-            } catch (e) {
-                console.warn("Anim retarget failed:", path, e);
-            }
-        }, undefined, () => {
-            console.warn("Anim missing:", path);
-        });
-    };
-
-    tryLoad("../Animation/WalkAnimation.glb", (a) => { walkAction = a; });
-    tryLoad("../Animation/JumpAnimation.glb", (a) => { jumpAction = a; });
-    tryLoad("../Animation/FallAnimation.glb", (a) => { fallAction = a; });
-}
+gltfLoader.load("../TernixGuy.glb", (gltf) => {
+    setupCharacter(gltf.scene);
+}, undefined, () => {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1.4, 0.65), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+    body.position.y = 0.7;
+    player.add(body);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.85, 0.85), new THREE.MeshLambertMaterial({ color: 0xe2bd91 }));
+    head.position.y = 1.8;
+    player.add(head);
+});
 
 function getColliders() {
     return placedBlocks.map(b => {
@@ -334,404 +319,420 @@ function getFloor(x, z) {
     }
     return floor;
 }
+function updatePlayPhysics(delta) {
+    verticalVelocity -= SETTINGS.gravity * delta;
+    let newY = playerPosition.y + verticalVelocity * delta;
+    const floor = getFloor(playerPosition.x, playerPosition.z);
+    if (newY <= floor) {
+        newY = floor;
+        verticalVelocity = 0;
+        onGround = true;
+    } else {
+        onGround = false;
+    }
+    playerPosition.y = newY;
+}
 
-document.querySelectorAll(".tool-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-        if (isPlayMode) return;
-        document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        currentTool = btn.dataset.tool;
-        statusText.textContent = "Tool: " + currentTool;
-        selectedBlock = null;
+function updatePlayMovement(delta) {
+    const input = new THREE.Vector3();
+    if (flyKeys.W) input.z -= 1;
+    if (flyKeys.S) input.z += 1;
+    if (flyKeys.A) input.x -= 1;
+    if (flyKeys.D) input.x += 1;
+    if (input.lengthSq() > 0) input.normalize();
 
-        if (currentTool === "world") {
-            statusText.textContent = "World: sky #87CEEB, fog on";
-            propertiesContent.innerHTML = `
-                <div style="margin-bottom:6px;"><b>World</b></div>
-                <div>Sky: #87CEEB</div>
-                <div>Fog: 50 → 140</div>
-                <div style="margin-top:8px;color:#666;">More world settings later</div>
-            `;
-            return;
+    const forward = new THREE.Vector3(Math.sin(camYaw), 0, Math.cos(camYaw));
+    const right = new THREE.Vector3(Math.cos(camYaw), 0, -Math.sin(camYaw));
+    const wish = new THREE.Vector3()
+        .addScaledVector(forward, -input.z)
+        .addScaledVector(right, input.x);
+
+    if (wish.lengthSq() > 0) {
+        wish.normalize();
+        velocity.x += wish.x * SETTINGS.acceleration * delta;
+        velocity.z += wish.z * SETTINGS.acceleration * delta;
+        const hSpeed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+        if (hSpeed > SETTINGS.playerSpeed) {
+            const s = SETTINGS.playerSpeed / hSpeed;
+            velocity.x *= s;
+            velocity.z *= s;
         }
-        updateProperties();
-    });
-});
+        player.rotation.y = Math.atan2(wish.x, wish.z);
+    } else {
+        const hSpeed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+        if (hSpeed > 0) {
+            const decel = SETTINGS.deceleration * delta;
+            const newSpeed = Math.max(0, hSpeed - decel);
+            const s = newSpeed / hSpeed;
+            velocity.x *= s;
+            velocity.z *= s;
+        }
+    }
+
+    let newX = playerPosition.x + velocity.x * delta;
+    let newZ = playerPosition.z + velocity.z * delta;
+    if (!collision(newX, playerPosition.z, playerPosition.y)) playerPosition.x = newX;
+    else velocity.x = 0;
+    if (!collision(playerPosition.x, newZ, playerPosition.y)) playerPosition.z = newZ;
+    else velocity.z = 0;
+}
+
+function updatePlayCamera() {
+    const offset = new THREE.Vector3(
+        Math.sin(camYaw) * Math.cos(camPitch),
+        Math.sin(camPitch),
+        Math.cos(camYaw) * Math.cos(camPitch)
+    ).multiplyScalar(SETTINGS.cameraDistance);
+    camera.position.copy(playerPosition).add(new THREE.Vector3(0, 1.6, 0)).add(offset);
+    camera.lookAt(playerPosition.x, playerPosition.y + 1.4, playerPosition.z);
+}
+
+function updateFly(delta) {
+    const speed = SETTINGS.flySpeed * (flyKeys.Shift ? SETTINGS.flyBoost : 1);
+    const forward = new THREE.Vector3(
+        Math.sin(camYaw) * Math.cos(camPitch),
+        Math.sin(camPitch),
+        Math.cos(camYaw) * Math.cos(camPitch)
+    );
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+    if (flyKeys.W) camera.position.addScaledVector(forward, speed * delta);
+    if (flyKeys.S) camera.position.addScaledVector(forward, -speed * delta);
+    if (flyKeys.A) camera.position.addScaledVector(right, -speed * delta);
+    if (flyKeys.D) camera.position.addScaledVector(right, speed * delta);
+    if (flyKeys.Space) camera.position.y += speed * delta;
+    if (flyKeys.Shift && !flyKeys.W && !flyKeys.S) camera.position.y -= speed * delta;
+    camera.lookAt(camera.position.clone().add(forward));
+}
+
+function setLimbX(mesh, extraX) {
+    if (!mesh || mesh.userData.baseRotX === undefined) return;
+    mesh.rotation.x = mesh.userData.baseRotX + extraX;
+}
+
+function updateAnims(delta) {
+    if (!useLimbAnim || !isPlayMode) return;
+    const moving = onGround && (flyKeys.W || flyKeys.A || flyKeys.S || flyKeys.D) && velocity.lengthSq() > 0.12;
+    const airborne = !onGround;
+
+    if (moving) animTime += delta * 10.5;
+    else animTime *= 0.7;
+
+    const swing = moving ? Math.sin(animTime) * 0.85 : 0;
+    const armSwing = moving ? Math.sin(animTime) * 0.95 : 0;
+
+    if (airborne && verticalVelocity > 2.0) {
+        setLimbX(animParts.leftArm, -2.9);
+        setLimbX(animParts.rightArm, -2.9);
+        setLimbX(animParts.leftLeg, 0.25);
+        setLimbX(animParts.rightLeg, 0.25);
+    } else if (airborne) {
+        setLimbX(animParts.leftArm, -0.55);
+        setLimbX(animParts.rightArm, -0.55);
+        setLimbX(animParts.leftLeg, 0.45);
+        setLimbX(animParts.rightLeg, 0.35);
+    } else {
+        setLimbX(animParts.leftLeg, swing);
+        setLimbX(animParts.rightLeg, -swing);
+        setLimbX(animParts.leftArm, -armSwing);
+        setLimbX(animParts.rightArm, armSwing);
+    }
+}
+
+function selectBlock(blockEntry) {
+    selectedBlock = blockEntry;
+    if (!blockEntry) {
+        propertiesContent.innerHTML = "Select an object";
+        return;
+    }
+    const d = blockEntry.data;
+    propertiesContent.innerHTML = `
+        <div>Position: ${d.x.toFixed(1)}, ${d.y.toFixed(1)}, ${d.z.toFixed(1)}</div>
+        <div style="margin-top:6px;">Size: ${d.width} × ${d.height} × ${d.depth}</div>
+        <div style="margin-top:6px;">Color: #${d.color.toString(16).padStart(6,"0")}</div>
+        <button type="button" id="btn-delete-sel" style="margin-top:10px;width:100%;padding:4px;">Delete</button>
+    `;
+    const del = document.getElementById("btn-delete-sel");
+    if (del) del.onclick = () => removeSelected();
+}
+
+function removeSelected() {
+    if (!selectedBlock || selectedBlock.data.isBase) return;
+    scene.remove(selectedBlock.mesh);
+    const idx = placedBlocks.indexOf(selectedBlock);
+    if (idx >= 0) placedBlocks.splice(idx, 1);
+    selectedBlock = null;
+    propertiesContent.innerHTML = "Select an object";
+    updateBlocksCount();
+}
+
+function updateBlocksCount() {
+    const count = placedBlocks.filter(b => !b.data.isBase).length;
+    if (blocksHeader) blocksHeader.textContent = "Blocks (" + count + ")";
+}
+
+function placeBlock(point, normal) {
+    const size = SETTINGS.blockSize;
+    const offset = normal.clone().multiplyScalar(size / 2);
+    let x = Math.round((point.x + offset.x) / size) * size;
+    let y = Math.round((point.y + offset.y) / size) * size;
+    let z = Math.round((point.z + offset.z) / size) * size;
+    if (y < 0) y = size / 2;
+
+    const color = colorList[colorIndex % colorList.length];
+    const mesh = createBlockMesh({ x, y, z, width: size, height: size, depth: size, color });
+    scene.add(mesh);
+    const entry = { mesh, data: { x, y, z, width: size, height: size, depth: size, color } };
+    placedBlocks.push(entry);
+    selectBlock(entry);
+    updateBlocksCount();
+    statusText.textContent = "Block placed";
+}
+
+function removeBlockAt(point) {
+    let closest = null;
+    let closestDist = 1.5;
+    for (const b of placedBlocks) {
+        if (b.data.isBase) continue;
+        const dist = b.mesh.position.distanceTo(point);
+        if (dist < closestDist) {
+            closestDist = dist;
+            closest = b;
+        }
+    }
+    if (closest) {
+        scene.remove(closest.mesh);
+        const idx = placedBlocks.indexOf(closest);
+        if (idx >= 0) placedBlocks.splice(idx, 1);
+        if (selectedBlock === closest) {
+            selectedBlock = null;
+            propertiesContent.innerHTML = "Select an object";
+        }
+        updateBlocksCount();
+        statusText.textContent = "Block removed";
+    }
+}
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
-function getMouseNDC(event) {
-    const rect = renderer.domElement.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-}
-
-function onViewportClick(event) {
-    if (isPlayMode || event.button !== 0) return;
-    if (currentTool === "world") {
-        statusText.textContent = "World tool — see Properties panel";
+function onPointerDown(e) {
+    if (isPlayMode) return;
+    if (e.button === 2) {
+        isRightMouse = true;
         return;
     }
+    if (e.button !== 0) return;
 
-    getMouseNDC(event);
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
+
     const meshes = placedBlocks.map(b => b.mesh);
     const hits = raycaster.intersectObjects(meshes, false);
-
-    if (currentTool === "block") placeBlock(hits);
-    else if (currentTool === "delete") {
-        if (hits.length > 0) {
-            if (hits[0].object.userData.isBase) {
-                statusText.textContent = "Cannot delete base platform";
-                return;
-            }
-            removeBlock(hits[0].object);
-        }
-    } else if (currentTool === "select" || currentTool === "move") {
-        selectedBlock = hits.length > 0 ? hits[0].object : null;
-        updateProperties();
-        if (selectedBlock && currentTool === "move" && !selectedBlock.userData.isBase) {
-            isDraggingBlock = true;
-            statusText.textContent = "Dragging — move mouse, wheel = height, release to place";
-        } else {
-            statusText.textContent = selectedBlock ? "Block selected" : "Nothing selected";
-        }
-    }
-}
-
-function placeBlock(hits) {
-    let pos = new THREE.Vector3(0, 1, 0);
-    if (hits.length > 0) {
-        const hit = hits[0];
-        const point = hit.point.clone();
-        const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
-        pos.copy(point).add(normal.multiplyScalar(SETTINGS.blockSize / 2));
-    } else {
-        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-        const target = new THREE.Vector3();
-        if (raycaster.ray.intersectPlane(plane, target)) pos.copy(target);
-    }
-    const s = SETTINGS.blockSize;
-    pos.x = Math.round(pos.x / s) * s;
-    pos.y = Math.max(1, Math.round(pos.y / s) * s);
-    pos.z = Math.round(pos.z / s) * s;
-
-    const color = colorList[colorIndex % colorList.length];
-    colorIndex++;
-    const mesh = createBlockMesh({ x: pos.x, y: pos.y, z: pos.z, width: s, height: s, depth: s, color });
-    scene.add(mesh);
-    placedBlocks.push({
-        mesh,
-        data: { x: pos.x, y: pos.y, z: pos.z, width: s, height: s, depth: s, color, isBase: false, useTexture: true }
-    });
-    mesh.userData.useTexture = true;
-    updateExplorer();
-    statusText.textContent = `Placed at (${pos.x}, ${pos.y}, ${pos.z})`;
-}
-
-function removeBlock(mesh) {
-    const idx = placedBlocks.findIndex(b => b.mesh === mesh);
-    if (idx === -1) return;
-    scene.remove(mesh);
-    mesh.geometry.dispose();
-    placedBlocks.splice(idx, 1);
-    if (selectedBlock === mesh) selectedBlock = null;
-    updateExplorer();
-    updateProperties();
-    statusText.textContent = "Block deleted";
-}
-
-function updateExplorer() {
-    const list = placedBlocks.filter(b => !b.data.isBase);
-    blocksHeader.textContent = "Blocks (" + list.length + ")";
-    const tree = document.getElementById("explorer-tree");
-    if (!tree) return;
-    tree.querySelectorAll(".block-item").forEach(el => el.remove());
-    list.forEach((b, i) => {
-        const el = document.createElement("div");
-        el.className = "tree-item indent block-item";
-        el.textContent = "Block " + (i + 1) + " (" + b.data.width + "x" + b.data.height + "x" + b.data.depth + ")";
-        el.onclick = () => {
-            selectedBlock = b.mesh;
-            currentTool = "select";
-            document.querySelectorAll(".tool-btn").forEach(btn => {
-                btn.classList.toggle("active", btn.dataset.tool === "select");
-            });
-            updateProperties();
-            statusText.textContent = "Selected Block " + (i + 1);
-        };
-        tree.appendChild(el);
-    });
-}
-
-function updateProperties() {
-    if (!selectedBlock) {
-        propertiesContent.innerHTML = '<div style="padding:6px;color:#666;">Select an object</div>';
+    if (!hits.length) {
+        selectBlock(null);
         return;
     }
-    const d = selectedBlock.userData;
-    const useTex = d.useTexture !== false;
-    propertiesContent.innerHTML = `
-        <div style="margin-bottom:6px;"><b>Block</b></div>
-        <div>X: ${Number(d.x).toFixed(1)} Y: ${Number(d.y).toFixed(1)} Z: ${Number(d.z).toFixed(1)}</div>
-        <div style="margin:6px 0;">Size: ${d.width} x ${d.height} x ${d.depth}</div>
-        <div style="margin:4px 0;">
-            <button type="button" id="btn-bigger" style="padding:2px 8px;margin-right:4px;">Bigger</button>
-            <button type="button" id="btn-smaller" style="padding:2px 8px;">Smaller</button>
-        </div>
-        <div style="margin:6px 0;">
-            Texture:
-            <button type="button" id="btn-tex-on" style="padding:2px 6px;">On</button>
-            <button type="button" id="btn-tex-off" style="padding:2px 6px;">Off</button>
-            <span style="font-size:10px;">(${useTex ? "on" : "off"})</span>
-        </div>
-    `;
-    const bigger = document.getElementById("btn-bigger");
-    const smaller = document.getElementById("btn-smaller");
-    if (bigger) bigger.onclick = () => resizeSelected(1);
-    if (smaller) smaller.onclick = () => resizeSelected(-1);
-    const ton = document.getElementById("btn-tex-on");
-    const toff = document.getElementById("btn-tex-off");
-    if (ton) ton.onclick = () => setSelectedTexture(true);
-    if (toff) toff.onclick = () => setSelectedTexture(false);
+    const hit = hits[0];
+    const entry = placedBlocks.find(b => b.mesh === hit.object);
+
+    if (currentTool === "select") {
+        selectBlock(entry || null);
+    } else if (currentTool === "block") {
+        placeBlock(hit.point, hit.face.normal);
+    } else if (currentTool === "delete") {
+        if (entry && !entry.data.isBase) {
+            scene.remove(entry.mesh);
+            const idx = placedBlocks.indexOf(entry);
+            if (idx >= 0) placedBlocks.splice(idx, 1);
+            selectedBlock = null;
+            propertiesContent.innerHTML = "Select an object";
+            updateBlocksCount();
+        }
+    } else if (currentTool === "move" && entry && !entry.data.isBase) {
+        isDraggingBlock = true;
+        selectedBlock = entry;
+        selectBlock(entry);
+    }
+}
+
+function onPointerMove(e) {
+    if (isPlayMode) {
+        if (document.pointerLockElement === renderer.domElement) {
+            camYaw -= e.movementX * SETTINGS.mouseSensitivity;
+            camPitch -= e.movementY * SETTINGS.mouseSensitivity;
+            camPitch = Math.max(SETTINGS.cameraMinPitch, Math.min(SETTINGS.cameraMaxPitch, camPitch));
+        }
+        return;
+    }
+    if (isRightMouse) {
+        camYaw -= e.movementX * SETTINGS.mouseSensitivity;
+        camPitch -= e.movementY * SETTINGS.mouseSensitivity;
+        camPitch = Math.max(-1.4, Math.min(1.4, camPitch));
+        return;
+    }
+    if (isDraggingBlock && selectedBlock && !selectedBlock.data.isBase) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -selectedBlock.data.y);
+        const target = new THREE.Vector3();
+        raycaster.ray.intersectPlane(plane, target);
+        if (target) {
+            const size = SETTINGS.blockSize;
+            const x = Math.round(target.x / size) * size;
+            const z = Math.round(target.z / size) * size;
+            selectedBlock.mesh.position.x = x;
+            selectedBlock.mesh.position.z = z;
+            selectedBlock.data.x = x;
+            selectedBlock.data.z = z;
+        }
+    }
+}
+
+function onPointerUp(e) {
+    if (e.button === 2) isRightMouse = false;
+    if (e.button === 0) isDraggingBlock = false;
+}
+
+function onKeyDown(e) {
+    const k = e.code;
+    if (k === "KeyW") flyKeys.W = true;
+    if (k === "KeyA") flyKeys.A = true;
+    if (k === "KeyS") flyKeys.S = true;
+    if (k === "KeyD") flyKeys.D = true;
+    if (k === "Space") {
+        flyKeys.Space = true;
+        if (isPlayMode && onGround) {
+            verticalVelocity = SETTINGS.jumpPower;
+            onGround = false;
+        }
+        e.preventDefault();
+    }
+    if (k === "ShiftLeft" || k === "ShiftRight") flyKeys.Shift = true;
+
+    if (!isPlayMode) {
+        if (k === "Delete" || k === "Backspace") removeSelected();
+        if (k === "KeyR") {
+            colorIndex = (colorIndex + 1) % colorList.length;
+            statusText.textContent = "Color: " + colorIndex;
+        }
+        if (k === "BracketRight" && selectedBlock && !selectedBlock.data.isBase) {
+            resizeSelected(1);
+        }
+        if (k === "BracketLeft" && selectedBlock && !selectedBlock.data.isBase) {
+            resizeSelected(-1);
+        }
+    }
+}
+
+function onKeyUp(e) {
+    const k = e.code;
+    if (k === "KeyW") flyKeys.W = false;
+    if (k === "KeyA") flyKeys.A = false;
+    if (k === "KeyS") flyKeys.S = false;
+    if (k === "KeyD") flyKeys.D = false;
+    if (k === "Space") flyKeys.Space = false;
+    if (k === "ShiftLeft" || k === "ShiftRight") flyKeys.Shift = false;
 }
 
 function resizeSelected(dir) {
-    if (!selectedBlock || selectedBlock.userData.isBase) return;
-    const d = selectedBlock.userData;
+    if (!selectedBlock || selectedBlock.data.isBase) return;
+    const d = selectedBlock.data;
     const step = SETTINGS.blockSize;
-    let w = d.width + dir * step;
-    let h = d.height + dir * step;
-    let dep = d.depth + dir * step;
-    w = Math.max(step, Math.min(40, w));
-    h = Math.max(step, Math.min(40, h));
-    dep = Math.max(step, Math.min(40, dep));
-    const x = d.x, y = d.y, z = d.z, color = d.color;
-    const useTexture = d.useTexture !== false;
-    removeBlock(selectedBlock);
-    const mesh = createBlockMesh({ x, y, z, width: w, height: h, depth: dep, color });
-    mesh.userData.useTexture = useTexture;
-    if (!useTexture) applySolidMaterial(mesh, color);
+    d.width = Math.max(step, d.width + dir * step);
+    d.height = Math.max(step, d.height + dir * step);
+    d.depth = Math.max(step, d.depth + dir * step);
+    scene.remove(selectedBlock.mesh);
+    const mesh = createBlockMesh(d);
     scene.add(mesh);
-    const data = { x, y, z, width: w, height: h, depth: dep, color, isBase: false, useTexture };
-    placedBlocks.push({ mesh, data });
-    mesh.userData = { ...mesh.userData, ...data };
-    selectedBlock = mesh;
-    updateExplorer();
-    updateProperties();
-    statusText.textContent = "Resized block";
+    selectedBlock.mesh = mesh;
+    selectBlock(selectedBlock);
 }
 
-function applySolidMaterial(mesh, color) {
-    mesh.material = getSolidMaterial(color);
-}
-
-function setSelectedTexture(on) {
-    if (!selectedBlock || selectedBlock.userData.isBase) return;
-    const d = selectedBlock.userData;
-    d.useTexture = on;
-    const entry = placedBlocks.find(b => b.mesh === selectedBlock);
-    if (entry) entry.data.useTexture = on;
-    if (on) {
-        selectedBlock.material = getBlockMaterial(d.color, d.width, d.depth);
-    } else {
-        applySolidMaterial(selectedBlock, d.color);
-    }
-    updateProperties();
-    statusText.textContent = on ? "Texture on" : "Texture off (solid)";
-}
-
-renderer.domElement.addEventListener("mousedown", (e) => {
-    if (e.button === 2) {
-        isRightMouse = true;
-        e.preventDefault();
-    }
-});
-document.addEventListener("mouseup", (e) => {
-    if (e.button === 2) isRightMouse = false;
-});
-window.addEventListener("blur", () => {
-    isRightMouse = false;
-    flyKeys.W = flyKeys.A = flyKeys.S = flyKeys.D = flyKeys.Space = flyKeys.Shift = false;
-});
-document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-        isRightMouse = false;
-        flyKeys.W = flyKeys.A = flyKeys.S = flyKeys.D = flyKeys.Space = flyKeys.Shift = false;
-    }
-});
-renderer.domElement.addEventListener("contextmenu", e => e.preventDefault());
-renderer.domElement.addEventListener("click", onViewportClick);
-
-document.addEventListener("mousemove", (e) => {
-    if (!isRightMouse) return;
-    camYaw -= e.movementX * SETTINGS.mouseSensitivity;
-    camPitch -= e.movementY * SETTINGS.mouseSensitivity;
-    camPitch = THREE.MathUtils.clamp(camPitch, SETTINGS.cameraMinPitch, SETTINGS.cameraMaxPitch);
+// —— Tools UI ——
+document.querySelectorAll(".tool-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+        document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentTool = btn.dataset.tool || "select";
+        statusText.textContent = "Tool: " + currentTool;
+    });
 });
 
-window.addEventListener("keydown", (e) => {
-    if (e.target.tagName === "INPUT") return;
-    if (e.code === "KeyW") flyKeys.W = true;
-    if (e.code === "KeyA") flyKeys.A = true;
-    if (e.code === "KeyS") flyKeys.S = true;
-    if (e.code === "KeyD") flyKeys.D = true;
-    if (e.code === "Space") { flyKeys.Space = true; e.preventDefault(); }
-    if (e.code === "ShiftLeft" || e.code === "ShiftRight") flyKeys.Shift = true;
-    if (!isPlayMode) {
-        if (e.code === "Digit1") setTool("select");
-        if (e.code === "Digit2") setTool("block");
-        if (e.code === "Digit3") setTool("delete");
-        if (e.code === "Digit4") setTool("move");
-        if (e.code === "Digit5") setTool("world");
-    }
-});
-window.addEventListener("keyup", (e) => {
-    if (e.code === "KeyW") flyKeys.W = false;
-    if (e.code === "KeyA") flyKeys.A = false;
-    if (e.code === "KeyS") flyKeys.S = false;
-    if (e.code === "KeyD") flyKeys.D = false;
-    if (e.code === "Space") flyKeys.Space = false;
-    if (e.code === "ShiftLeft" || e.code === "ShiftRight") flyKeys.Shift = false;
-});
-
-function setTool(name) {
-    currentTool = name;
-    document.querySelectorAll(".tool-btn").forEach(b => b.classList.toggle("active", b.dataset.tool === name));
-    statusText.textContent = "Tool: " + name;
-    if (name === "world") {
-        selectedBlock = null;
-        propertiesContent.innerHTML = `
-            <div style="margin-bottom:6px;"><b>World</b></div>
-            <div>Sky: #87CEEB</div>
-            <div>Fog: 50 → 140</div>
-            <div style="margin-top:8px;color:#666;">More world settings later</div>
-        `;
-    }
-}
-
-document.addEventListener("mousemove", (e) => {
-    if (!isDraggingBlock || !selectedBlock || isPlayMode) return;
-    if (selectedBlock.userData.isBase) return;
-    getMouseNDC(e);
-    raycaster.setFromCamera(mouse, camera);
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -selectedBlock.position.y);
-    const hit = new THREE.Vector3();
-    if (raycaster.ray.intersectPlane(plane, hit)) {
-        const s = SETTINGS.blockSize;
-        let x = Math.round(hit.x / s) * s;
-        let z = Math.round(hit.z / s) * s;
-        selectedBlock.position.x = x;
-        selectedBlock.position.z = z;
-        selectedBlock.userData.x = x;
-        selectedBlock.userData.z = z;
-        const entry = placedBlocks.find(b => b.mesh === selectedBlock);
-        if (entry) {
-            entry.data.x = x;
-            entry.data.z = z;
-        }
-    }
-});
-
-document.addEventListener("mouseup", (e) => {
-    if (e.button === 0 && isDraggingBlock) {
-        isDraggingBlock = false;
-        updateProperties();
-        updateExplorer();
-        statusText.textContent = "Moved block";
-    }
-});
-
-renderer.domElement.addEventListener("wheel", (e) => {
-    if (!isDraggingBlock || !selectedBlock || isPlayMode) return;
-    if (selectedBlock.userData.isBase) return;
-    e.preventDefault();
-    const s = SETTINGS.blockSize;
-    let y = selectedBlock.position.y - Math.sign(e.deltaY) * s;
-    y = Math.max(1, Math.round(y / s) * s);
-    selectedBlock.position.y = y;
-    selectedBlock.userData.y = y;
-    const entry = placedBlocks.find(b => b.mesh === selectedBlock);
-    if (entry) entry.data.y = y;
-}, { passive: false });
-
-btnPlay.addEventListener("click", enterPlayMode);
-btnExitPlay.addEventListener("click", exitPlayMode);
-
+// —— Play / Exit ——
 function enterPlayMode() {
     isPlayMode = true;
-    btnPlay.style.display = "none";
-    btnExitPlay.style.display = "inline-block";
     player.visible = true;
-    playerPosition.set(0, 2, 6);
+    playerPosition.set(0, 3, 8);
     velocity.set(0, 0, 0);
     verticalVelocity = 0;
-    flyKeys.W = flyKeys.A = flyKeys.S = flyKeys.D = flyKeys.Space = false;
-    statusText.textContent = "PLAY MODE - WASD + Space | Right-click camera";
+    onGround = false;
+    camYaw = Math.PI;
+    camPitch = -0.3;
+    btnPlay.style.display = "none";
+    btnExitPlay.style.display = "inline-block";
+    statusText.textContent = "Play Mode — WASD move, Space jump, Right-click look";
+    renderer.domElement.requestPointerLock();
 }
 
 function exitPlayMode() {
     isPlayMode = false;
+    player.visible = false;
     btnPlay.style.display = "inline-block";
     btnExitPlay.style.display = "none";
-    player.visible = false;
-    flyKeys.W = flyKeys.A = flyKeys.S = flyKeys.D = flyKeys.Space = false;
-    if (walkAction) walkAction.stop();
-    if (jumpAction) jumpAction.stop();
-    if (fallAction) fallAction.stop();
-    statusText.textContent = "Back to build mode";
+    statusText.textContent = "Build Mode";
+    document.exitPointerLock();
 }
 
-function exitStudio() {
-    window.location.href = "index.html";
-}
-document.getElementById("menu-exit").addEventListener("click", exitStudio);
-document.getElementById("btn-close-studio").addEventListener("click", exitStudio);
+btnPlay.addEventListener("click", enterPlayMode);
+btnExitPlay.addEventListener("click", exitPlayMode);
 
-document.getElementById("menu-save").addEventListener("click", () => {
-    saveNameInput.value = placeName === "Untitled Place" ? "" : placeName;
-    saveModal.classList.add("show");
-});
-document.getElementById("save-cancel").addEventListener("click", () => saveModal.classList.remove("show"));
-document.getElementById("save-confirm").addEventListener("click", () => {
+// —— Save ——
+function savePlaceToStorage(name) {
+    const data = {
+        name: name || placeName,
+        blocks: placedBlocks.map(b => ({ ...b.data })),
+        saved: Date.now()
+    };
+    localStorage.setItem("ternix_place_" + currentUser, JSON.stringify(data));
+    placeName = data.name;
+    placeTitle.textContent = "Ternix Creators - " + placeName;
+}
+
+document.getElementById("save-confirm")?.addEventListener("click", () => {
     const name = saveNameInput.value.trim() || "Untitled Place";
-    placeName = name;
-    placeTitle.textContent = "Ternix Creators - " + name;
     savePlaceToStorage(name);
     saveModal.classList.remove("show");
     statusText.textContent = "Saved: " + name;
 });
 
-document.getElementById("menu-publish").addEventListener("click", () => {
-    publishNameInput.value = placeName === "Untitled Place" ? "" : placeName;
-    coverPreview.innerHTML = "No image selected";
-    publishCover.value = "";
-    coverDataUrl = null;
-    publishModal.classList.add("show");
+document.getElementById("save-cancel")?.addEventListener("click", () => {
+    saveModal.classList.remove("show");
 });
-document.getElementById("publish-cancel").addEventListener("click", () => publishModal.classList.remove("show"));
 
+// —— Publish (1 game per author, overwrite) ——
 let coverDataUrl = null;
-publishCover.addEventListener("change", (e) => {
+publishCover?.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-        coverDataUrl = ev.target.result;
-        coverPreview.innerHTML = '<img src="' + coverDataUrl + '" alt="cover">';
+    reader.onload = () => {
+        coverDataUrl = reader.result;
+        coverPreview.innerHTML = `<img src="${coverDataUrl}" alt="cover">`;
     };
     reader.readAsDataURL(file);
 });
 
-document.getElementById("publish-confirm").addEventListener("click", () => {
+document.getElementById("publish-confirm")?.addEventListener("click", async () => {
     const name = publishNameInput.value.trim();
     if (!name) {
         alert("Please enter a game title");
         return;
     }
-
-    const author = localStorage.getItem("ternix_creators_user");
+    const author = currentUser;
     if (!author) {
         alert("You must be logged in to publish");
         window.location.href = "index.html";
@@ -742,8 +743,7 @@ document.getElementById("publish-confirm").addEventListener("click", () => {
     placeTitle.textContent = "Ternix Creators - " + name;
     savePlaceToStorage(name);
 
-    const id = "game_" + String(author).replace(/\W/g, "_") + "_" + Date.now();
-
+    const id = "game_" + String(author).replace(/\W/g, "_").toLowerCase();
     const gameData = {
         id: id,
         title: name,
@@ -754,225 +754,113 @@ document.getElementById("publish-confirm").addEventListener("click", () => {
         activePlayers: 0
     };
 
-    // 1) Firebase — видят ВСЕ игроки (как Roblox)
-    if (window.ternixDB) {
-        window.ternixDB.ref("ternix_games/" + id).set(gameData)
-            .then(() => {
-                // 2) localStorage — запасной вариант на этом ПК
-                try {
-                    let games = JSON.parse(localStorage.getItem("ternix_published_games") || "[]");
-                    if (!Array.isArray(games)) games = [];
-                    games = games.filter(g => g.author !== author);
-                    games.unshift(gameData);
-                    localStorage.setItem("ternix_published_games", JSON.stringify(games));
-                } catch (e) {}
+    if (!window.ternixDB) {
+        alert("Firebase not found — check studio.html scripts.");
+        return;
+    }
 
-                publishModal.classList.remove("show");
-                statusText.textContent = "Published: " + name;
-                alert('Game "' + name + '" published!\nEveryone can see it in Best Games.');
-            })
-            .catch((err) => {
-                console.error(err);
-                alert("Publish failed: " + err.message + "\nCheck Firebase Rules are published.");
-            });
-    } else {
-        // Firebase не загрузился — только local
+    try {
+        const snap = await window.ternixDB.ref("ternix_games").once("value");
+        const all = snap.val() || {};
+        const removes = [];
+        Object.keys(all).forEach((key) => {
+            if (all[key] && String(all[key].author).toLowerCase() === String(author).toLowerCase() && key !== id) {
+                removes.push(window.ternixDB.ref("ternix_games/" + key).remove());
+            }
+        });
+        await Promise.all(removes);
+        await window.ternixDB.ref("ternix_games/" + id).set(gameData);
+
         try {
             let games = JSON.parse(localStorage.getItem("ternix_published_games") || "[]");
             if (!Array.isArray(games)) games = [];
-            games = games.filter(g => g.author !== author);
+            games = games.filter(g => String(g.author).toLowerCase() !== String(author).toLowerCase());
             games.unshift(gameData);
             localStorage.setItem("ternix_published_games", JSON.stringify(games));
         } catch (e) {}
+
         publishModal.classList.remove("show");
-        statusText.textContent = "Published locally only (Firebase missing)";
-        alert("Published only on this device.\nFirebase not found — check studio.html scripts.");
+        statusText.textContent = "Published: " + name;
+        alert('Game "' + name + '" published!\nPrevious game of this account was replaced.');
+    } catch (err) {
+        console.error(err);
+        alert("Publish failed: " + err.message);
     }
 });
 
-function savePlaceToStorage(name) {
-    const user = localStorage.getItem("ternix_creators_user");
-    if (!user) return;
-    const data = {
-        name,
-        blocks: placedBlocks.map(b => ({ ...b.data })),
-        savedAt: Date.now(),
-        owner: user
-    };
-    localStorage.setItem("ternix_place_" + user, JSON.stringify(data));
-}
+document.getElementById("publish-cancel")?.addEventListener("click", () => {
+    publishModal.classList.remove("show");
+});
 
+// —— Menu actions ——
+document.getElementById("menu-save")?.addEventListener("click", () => {
+    saveNameInput.value = placeName;
+    saveModal.classList.add("show");
+});
+document.getElementById("menu-publish")?.addEventListener("click", () => {
+    publishNameInput.value = placeName;
+    publishModal.classList.add("show");
+});
+document.getElementById("menu-new")?.addEventListener("click", () => {
+    if (!confirm("Clear current place?")) return;
+    placedBlocks.slice().forEach(b => {
+        if (!b.data.isBase) scene.remove(b.mesh);
+    });
+    placedBlocks.length = 0;
+    createBasePlatform();
+    selectedBlock = null;
+    propertiesContent.innerHTML = "Select an object";
+    placeName = "Untitled Place";
+    placeTitle.textContent = "Ternix Creators - Untitled Place";
+    updateBlocksCount();
+});
+document.getElementById("btn-close-studio")?.addEventListener("click", () => {
+    window.location.href = "index.html";
+});
+
+// —— Load saved place ——
 function loadPlaceFromStorage() {
-    const user = localStorage.getItem("ternix_creators_user");
-    if (!user) return;
-    const raw = localStorage.getItem("ternix_place_" + user);
-    if (!raw) return;
     try {
+        const raw = localStorage.getItem("ternix_place_" + currentUser);
+        if (!raw) return;
         const data = JSON.parse(raw);
-        placeName = data.name || "Untitled Place";
-        placeTitle.textContent = "Ternix Creators - " + placeName;
-        for (let i = placedBlocks.length - 1; i >= 0; i--) {
-            const b = placedBlocks[i];
-            if (b.data.isBase) continue;
-            scene.remove(b.mesh);
-            b.mesh.geometry.dispose();
-            placedBlocks.splice(i, 1);
-        }
-        for (const d of (data.blocks || [])) {
-            if (d.isBase) continue;
+        if (!data || !Array.isArray(data.blocks)) return;
+        placedBlocks.slice().forEach(b => scene.remove(b.mesh));
+        placedBlocks.length = 0;
+        data.blocks.forEach(d => {
             const mesh = createBlockMesh(d);
-            mesh.userData.useTexture = d.useTexture !== false;
-            if (d.useTexture === false) applySolidMaterial(mesh, d.color);
             scene.add(mesh);
             placedBlocks.push({ mesh, data: { ...d } });
-        }
-        updateExplorer();
-        statusText.textContent = "Loaded place: " + placeName;
-    } catch (err) {
-        console.warn("Failed to load place", err);
+        });
+        placeName = data.name || "Untitled Place";
+        placeTitle.textContent = "Ternix Creators - " + placeName;
+        updateBlocksCount();
+        statusText.textContent = "Loaded: " + placeName;
+    } catch (e) {
+        console.warn("Load place failed", e);
     }
 }
 loadPlaceFromStorage();
 
-function updateFly(delta) {
-    const speed = SETTINGS.flySpeed * (flyKeys.Shift ? SETTINGS.flyBoost : 1);
-    const forward = new THREE.Vector3(
-        Math.sin(camYaw) * Math.cos(camPitch),
-        Math.sin(camPitch),
-        Math.cos(camYaw) * Math.cos(camPitch)
-    ).normalize();
-    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-    const move = new THREE.Vector3();
-    if (flyKeys.W) move.add(forward);
-    if (flyKeys.S) move.sub(forward);
-    if (flyKeys.A) move.sub(right);
-    if (flyKeys.D) move.add(right);
-    if (flyKeys.Space) move.y += 1;
-    if (move.lengthSq() > 0) {
-        move.normalize().multiplyScalar(speed * delta);
-        camera.position.add(move);
-    }
-    camera.lookAt(camera.position.clone().add(forward));
-}
-
-function approach(current, target, amount) {
-    if (current < target) return Math.min(current + amount, target);
-    if (current > target) return Math.max(current - amount, target);
-    return target;
-}
-
-function updatePlayMovement(delta) {
-    const direction = new THREE.Vector3();
-    if (flyKeys.W) direction.z -= 1;
-    if (flyKeys.S) direction.z += 1;
-    if (flyKeys.A) direction.x -= 1;
-    if (flyKeys.D) direction.x += 1;
-    const moving = direction.lengthSq() > 0;
-    if (moving) {
-        direction.normalize();
-        direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), camYaw);
-    }
-    const targetX = moving ? direction.x * SETTINGS.playerSpeed : 0;
-    const targetZ = moving ? direction.z * SETTINGS.playerSpeed : 0;
-    const accel = moving ? SETTINGS.acceleration : SETTINGS.deceleration;
-    velocity.x = approach(velocity.x, targetX, accel * delta);
-    velocity.z = approach(velocity.z, targetZ, accel * delta);
-
-    const nextX = playerPosition.x + velocity.x * delta;
-    if (!collision(nextX, playerPosition.z, playerPosition.y)) playerPosition.x = nextX;
-    else velocity.x = 0;
-
-    const nextZ = playerPosition.z + velocity.z * delta;
-    if (!collision(playerPosition.x, nextZ, playerPosition.y)) playerPosition.z = nextZ;
-    else velocity.z = 0;
-
-    if (moving) {
-        const targetRot = Math.atan2(direction.x, direction.z);
-        let diff = targetRot - player.rotation.y;
-        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-        player.rotation.y += diff * Math.min(1, delta * 18);
-    }
-    if (flyKeys.Space && onGround) {
-        verticalVelocity = SETTINGS.jumpPower;
-        onGround = false;
-        if (jumpAction) jumpAction.reset().setLoop(THREE.LoopOnce).play();
-    }
-}
-
-function updatePlayPhysics(delta) {
-    verticalVelocity -= SETTINGS.gravity * delta;
-    verticalVelocity = Math.max(verticalVelocity, -35);
-    playerPosition.y += verticalVelocity * delta;
-    const floor = getFloor(playerPosition.x, playerPosition.z);
-    if (playerPosition.y <= floor) {
-        playerPosition.y = floor;
-        verticalVelocity = 0;
-        onGround = true;
-    } else {
-        onGround = false;
-    }
-}
-
-function updatePlayCamera() {
-    const target = new THREE.Vector3(playerPosition.x, playerPosition.y + 1.6, playerPosition.z);
-    const horiz = Math.cos(camPitch) * SETTINGS.cameraDistance;
-    const vert = Math.sin(camPitch) * SETTINGS.cameraDistance;
-    camera.position.set(
-        target.x + Math.sin(camYaw) * horiz,
-        target.y + vert,
-        target.z + Math.cos(camYaw) * horiz
-    );
-    camera.lookAt(target);
-}
-
-function updateAnims() {
-    if (!mixer) return;
-    const moving = velocity.lengthSq() > 0.1;
-    if (walkAction) {
-        if (moving && onGround) {
-            if (!walkAction.isRunning()) walkAction.reset().play();
-        } else {
-            walkAction.stop();
-        }
-    }
-    if (fallAction) {
-        if (!onGround && verticalVelocity < -2) {
-            if (!fallAction.isRunning()) fallAction.reset().play();
-        } else if (onGround) {
-            fallAction.stop();
-        }
-    }
-}
+// —— Events ——
+renderer.domElement.addEventListener("pointerdown", onPointerDown);
+window.addEventListener("pointermove", onPointerMove);
+window.addEventListener("pointerup", onPointerUp);
+window.addEventListener("keydown", onKeyDown);
+window.addEventListener("keyup", onKeyUp);
+renderer.domElement.addEventListener("contextmenu", (e) => e.preventDefault());
 
 function resize() {
     const w = gameContainer.clientWidth;
     const h = gameContainer.clientHeight;
-    if (w < 1 || h < 1) return;
-    camera.aspect = w / h;
+    camera.aspect = w / Math.max(h, 1);
     camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
+    renderer.setSize(w, h, false);
 }
 window.addEventListener("resize", resize);
 resize();
 
-const clock = new THREE.Clock();
-function loop() {
-    requestAnimationFrame(loop);
-    const delta = Math.min(clock.getDelta(), 0.05);
-    if (isPlayMode) {
-        updatePlayMovement(delta);
-        updatePlayPhysics(delta);
-        player.position.copy(playerPosition);
-        updatePlayCamera();
-        if (mixer) mixer.update(delta);
-        updateAnims();
-    } else {
-        updateFly(delta);
-    }
-    renderer.render(scene, camera);
-}
-loop();
-
+// —— Cursor ——
 function resizeCursorImage(imgUrl, callback) {
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -991,7 +879,6 @@ function resizeCursorImage(imgUrl, callback) {
         img.src = imgUrl;
     };
 }
-
 window.addEventListener("DOMContentLoaded", () => {
     resizeCursorImage("../cursor/Ternix 3 cursor.png", (url3) => {
         resizeCursorImage("../cursor/Ternix 1 cursor.png", (urlDef) => {
@@ -1007,3 +894,22 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     });
 });
+
+// —— Main loop ——
+const clock = new THREE.Clock();
+function loop() {
+    requestAnimationFrame(loop);
+    const delta = Math.min(clock.getDelta(), 0.05);
+
+    if (isPlayMode) {
+        updatePlayMovement(delta);
+        updatePlayPhysics(delta);
+        player.position.copy(playerPosition);
+        updatePlayCamera();
+        updateAnims(delta);
+    } else {
+        updateFly(delta);
+    }
+    renderer.render(scene, camera);
+}
+loop();

@@ -14,7 +14,6 @@ html, body {
     color: #000;
 }
 
-/* Title bar - classic */
 #title-bar {
     height: 22px;
     background: #000080;
@@ -38,7 +37,6 @@ html, body {
     color: #000;
 }
 
-/* Menu + tools in one row like old Roblox */
 #menu-bar {
     height: 24px;
     background: #ece9d8;
@@ -206,7 +204,6 @@ html, body {
     font-size: 11px;
 }
 
-/* Modals - classic */
 .modal-overlay {
     display: none;
     position: fixed;

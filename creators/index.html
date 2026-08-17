@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ternix Creators</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -95,34 +97,36 @@
     <button class="big-btn" type="button" id="continueBtn" style="display:none; font-weight:normal;" onclick="continuePlace()">Continue Place</button>
     <button class="big-btn" type="button" style="font-weight:normal;" onclick="goHub()">Back to Ternix</button>
     <button class="big-btn" type="button" style="font-weight:normal;" onclick="logout()">Logout</button>
-    <p class="hint">Each account can publish only 1 game.</p>
+    <p class="hint">Each account can publish only 1 game. Same accounts as main Ternix.</p>
 </div>
 
 <script>
-/* ========== MULTI-ACCOUNT STORAGE ========== */
-function getAccounts() {
-    try {
-        const raw = localStorage.getItem("ternix_creators_accounts");
-        if (raw) {
-            const arr = JSON.parse(raw);
-            if (Array.isArray(arr)) return arr;
-        }
-    } catch (e) {}
-    // migrate old single account
-    const u = localStorage.getItem("ternix_creators_user");
-    const p = localStorage.getItem("ternix_creators_pass");
-    if (u && p) {
-        const arr = [{ user: u, pass: p }];
-        localStorage.setItem("ternix_creators_accounts", JSON.stringify(arr));
-        return arr;
-    }
-    return [];
+const firebaseConfig = {
+    apiKey: "AIzaSyB_ypIESl-KCx-FDJrUrhdgE92O1uaMr8k",
+    authDomain: "ternix-13694.firebaseapp.com",
+    databaseURL: "https://ternix-13694-default-rtdb.firebaseio.com",
+    projectId: "ternix-13694",
+    storageBucket: "ternix-13694.firebasestorage.app",
+    messagingSenderId: "433433684244",
+    appId: "1:433433684244:web:c52b6eb37204b7b1f6ba01",
+    measurementId: "G-VM8PCVDMRW"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+window.ternixDB = db;
+
+async function hashPassword(password) {
+    const data = new TextEncoder().encode(password);
+    const hash = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
-function saveAccounts(arr) {
-    localStorage.setItem("ternix_creators_accounts", JSON.stringify(arr));
-}
-function setCurrentUser(username) {
+
+function setCurrentUser(username, sessionId) {
+    localStorage.setItem("ternix_user", username);
+    localStorage.setItem("ternix_registered_user", username);
     localStorage.setItem("ternix_creators_user", username);
+    localStorage.setItem("ternix_session", sessionId);
+    localStorage.setItem("ternix_logged_in", "true");
     localStorage.setItem("ternix_creators_logged", "true");
 }
 
@@ -137,50 +141,83 @@ function showLogin() {
     document.getElementById("errorMsg").textContent = "";
 }
 
-function doRegister() {
+async function doRegister() {
     const user = document.getElementById("regUser").value.trim();
     const pass = document.getElementById("regPass").value;
     const error = document.getElementById("errorMsg");
+    error.textContent = "";
+
     if (user.length < 3) { error.textContent = "Username min 3 characters"; return; }
-    if (pass.length < 4) { error.textContent = "Password min 4 characters"; return; }
+    if (pass.length < 8) { error.textContent = "Password min 8 characters"; return; }
     if (!/^[A-Za-z0-9_]+$/.test(user)) {
         error.textContent = "Only letters, numbers and _";
         return;
     }
-    const accounts = getAccounts();
-    if (accounts.some(a => a.user.toLowerCase() === user.toLowerCase())) {
-        error.textContent = "This username is already registered";
-        return;
+
+    const key = user.toLowerCase();
+    try {
+        const snap = await db.ref("ternix_users/" + key).once("value");
+        if (snap.exists()) {
+            error.textContent = "This username is already registered";
+            return;
+        }
+        const hashed = await hashPassword(pass);
+        const sessionId = "s_" + Math.random().toString(36).slice(2) + Date.now();
+        await db.ref("ternix_users/" + key).set({
+            username: user,
+            password: hashed,
+            sessionId: sessionId,
+            created: Date.now()
+        });
+        setCurrentUser(user, sessionId);
+        showDashboard(user);
+    } catch (e) {
+        error.textContent = "Error: " + e.message;
     }
-    accounts.push({ user: user, pass: pass });
-    saveAccounts(accounts);
-    setCurrentUser(user);
-    showDashboard(user);
 }
 
-function doLogin() {
+async function doLogin() {
     const user = document.getElementById("loginUser").value.trim();
     const pass = document.getElementById("loginPass").value;
     const error = document.getElementById("errorMsg");
-    const accounts = getAccounts();
-    if (accounts.length === 0) {
-        error.textContent = "No account found. Please Register first.";
+    error.textContent = "";
+
+    if (!user || !pass) {
+        error.textContent = "Enter username and password";
         return;
     }
-    const found = accounts.find(a => a.user.toLowerCase() === user.toLowerCase() && a.pass === pass);
-    if (!found) {
-        error.textContent = "Incorrect username or password";
-        return;
+
+    const key = user.toLowerCase();
+    try {
+        const snap = await db.ref("ternix_users/" + key).once("value");
+        if (!snap.exists()) {
+            error.textContent = "Incorrect username or password";
+            return;
+        }
+        const data = snap.val();
+        const hashed = await hashPassword(pass);
+        const ok = (data.password === hashed) || (String(data.password) === String(pass));
+        if (!ok) {
+            error.textContent = "Incorrect username or password";
+            return;
+        }
+        if (data.password !== hashed) {
+            await db.ref("ternix_users/" + key).update({ password: hashed });
+        }
+        const sessionId = "s_" + Math.random().toString(36).slice(2) + Date.now();
+        await db.ref("ternix_users/" + key).update({ sessionId: sessionId });
+        const name = data.username || user;
+        setCurrentUser(name, sessionId);
+        showDashboard(name);
+    } catch (e) {
+        error.textContent = "Error: " + e.message;
     }
-    setCurrentUser(found.user);
-    showDashboard(found.user);
 }
 
 function showDashboard(username) {
     document.getElementById("auth").style.display = "none";
     document.getElementById("dashboard").style.display = "block";
     document.getElementById("userName").textContent = username;
-    // show Continue only if this user has a saved place
     const place = localStorage.getItem("ternix_place_" + username);
     document.getElementById("continueBtn").style.display = place ? "block" : "none";
 }
@@ -198,13 +235,13 @@ function goHub() {
 }
 function logout() {
     localStorage.removeItem("ternix_creators_logged");
-    // keep accounts and places, only clear session
+    localStorage.removeItem("ternix_logged_in");
+    localStorage.removeItem("ternix_session");
     location.reload();
 }
 
-// NEVER auto-open studio — always show dashboard or login
 if (localStorage.getItem("ternix_creators_logged") === "true") {
-    const u = localStorage.getItem("ternix_creators_user");
+    const u = localStorage.getItem("ternix_creators_user") || localStorage.getItem("ternix_user");
     if (u) showDashboard(u);
 }
 

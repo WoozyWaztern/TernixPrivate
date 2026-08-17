@@ -36,7 +36,8 @@ canvas {
 #chat-input {
     position: absolute; left: 7px; top: 3px; width: calc(100% - 14px); height: 27px;
     border: none; outline: none; background: transparent; color: white;
-    font-size: 14px; font-family: Arial, Helvetica, sans-serif; display: none; user-select: text;
+    font-size: 14px; font-family: Arial, Helvetica, sans-serif;
+    display: none; user-select: text;
 }
 #chat-bar.active {
     background: rgba(35,35,35,0.94); border-color: rgba(255,255,255,0.75);
